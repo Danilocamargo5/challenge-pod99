@@ -11,6 +11,7 @@ import java.time.ZoneId;
 import java.util.UUID;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class TransacaoAutorizadaEvent extends DomainEvent {

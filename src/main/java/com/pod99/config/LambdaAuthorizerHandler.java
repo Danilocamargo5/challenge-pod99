@@ -104,7 +104,7 @@ public class LambdaAuthorizerHandler {
             }
             
             // Decodificar payload (parte 2)
-            String payload = new String(Base64.decode(parts[1]), StandardCharsets.UTF_8);
+            String payload = new String(Base64.getDecoder().decode(parts[1]), StandardCharsets.UTF_8);
             @SuppressWarnings("unchecked")
             Map<String, Object> claims = objectMapper.readValue(payload, Map.class);
             
