@@ -45,6 +45,12 @@ public class AuthorizationController {
         return ResponseEntity.ok(Map.of("status", "OK", "message", "Test endpoint funcionando"));
     }
     
+    @PostMapping("/test2")
+    public ResponseEntity<?> test2(@RequestBody AuthorizeTransactionRequest request) {
+        log.info("✅ Test2 recebeu request: {}", request);
+        return ResponseEntity.ok(request);
+    }
+    
     @PostMapping("/{idContrato}/autorizacoes")
     public ResponseEntity<?> authorize(
             @PathVariable String idContrato,
