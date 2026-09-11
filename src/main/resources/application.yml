@@ -3,6 +3,10 @@ spring:
     name: pod99-authorization-platform
   profiles:
     active: local
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:us-east-1}
   
 server:
   port: ${SERVER_PORT:8080}
