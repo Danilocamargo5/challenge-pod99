@@ -28,10 +28,16 @@ public class AwsConfig {
     @Value("${aws.region:us-east-1}")
     private String region;
     
+    @Value("${aws.credentials.access-key-id:test}")
+    private String accessKeyId;
+    
+    @Value("${aws.credentials.secret-access-key:test}")
+    private String secretAccessKey;
+    
     @Bean
     public software.amazon.awssdk.auth.credentials.AwsCredentialsProvider awsCredentialsProvider() {
         return StaticCredentialsProvider.create(
-            AwsBasicCredentials.create("test", "test"));
+            AwsBasicCredentials.create(accessKeyId, secretAccessKey));
     }
     
     @Bean

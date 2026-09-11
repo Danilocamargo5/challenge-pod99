@@ -1,9 +1,6 @@
 spring:
   cloud:
     aws:
-      credentials:
-        access-key-id: test
-        secret-access-key: test
       region:
         static: us-east-1
       sqs:
@@ -12,6 +9,9 @@ spring:
 
 aws:
   region: us-east-1
+  credentials:
+    access-key-id: ${AWS_ACCESS_KEY_ID:test}
+    secret-access-key: ${AWS_SECRET_ACCESS_KEY:test}
   dynamodb:
     endpoint: http://localhost:8000
   eventbridge:
