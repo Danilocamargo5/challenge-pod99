@@ -1,0 +1,453 @@
+openapi: 3.0.3
+info:
+  title: POD99 — Plataforma de Autorização de Transações
+  description: |
+    API síncrona para autorização de transações financeiras com gerenciamento de limites.
+    
+    # Características
+    - Autorização em tempo real (~5k TPS)
+    - Idempotência garantida via Idempotency-Key
+    - Eventos de domínio publicados em EventBridge
+    - RFC 7807 Problem Details para erros
+    
+    # Segurança
+    - OAuth2 (client credentials) ou Lambda Authorizer
+    - Rate limiting por plano de uso
+    - Throttling automático
+  version: "1.0.0"
+  contact:
+    name: POD99 Team
+    email: arch@pod99.io
+  license:
+    name: Apache 2.0
+
+servers:
+  - url: https://api.pod99.io
+    description: Produção
+  - url: http://localhost:8080
+    description: Desenvolvimento local
+
+tags:
+  - name: Autorização
+    description: Operações de autorização de transações
+  - name: Health
+    description: Status da plataforma
+
+paths:
+  /v1/contratos/{id_contrato}/autorizacoes:
+    post:
+      tags:
+        - Autorização
+      summary: Autorizar transação
+      operationId: authorizeTransaction
+      description: |
+        Autoriza uma transação financeira, verifica limite disponível e publica evento.
+        
+        ## Fluxo
+        1. Valida idempotência (Idempotency-Key)
+        2. Adquire locks distribuídos (LockService)
+        3. Verifica limite disponível
+        4. Reserva limite atomicamente
+        5. Persiste autorização
+        6. Publica evento TransacaoAutorizada
+        7. Retorna 201 Created
+        
+        ## Idempotência
+        Se requisição é reenviada com mesmo Idempotency-Key, retorna 200 OK com resultado original (não 201).
+        
+        ## Rate Limiting
+        - Limite: 1000 req/min por cliente
+        - Burst: 100 req/sec
+        - Header: X-RateLimit-Remaining
+      parameters:
+        - name: id_contrato
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Z0-9\-]{1,50}$'
+          example: CONTA-001
+          description: Identificador do contrato
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+          description: |
+            Chave de idempotência (RFC 7231).
+            Garante que requisições duplicadas retornam mesmo resultado sem reaplicar efeitos colaterais.
+        - name: X-Trace-ID
+          in: header
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: ID de trace distribuído (W3C Trace Context) para observabilidade
+        - name: X-Correlation-ID
+          in: header
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: ID de correlação ponta-a-ponta para rastreamento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorizeTransactionRequest'
+            examples:
+              débito:
+                summary: Autorizar débito
+                value:
+                  id_conta: "ACC-001"
+                  valor: 100.00
+                  moeda: "BRL"
+                  tipo_operacao: "DEBITO"
+                  id_estabelecimento: "EST-123"
+                  metadata:
+                    geolocation: "SP"
+                    device_id: "device-456"
+              crédito:
+                summary: Autorizar crédito
+                value:
+                  id_conta: "ACC-001"
+                  valor: 5000.00
+                  moeda: "BRL"
+                  tipo_operacao: "CREDITO"
+      responses:
+        "201":
+          description: Autorização aprovada
+          headers:
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+              description: Requisições restantes neste período
+            X-Correlation-ID:
+              schema:
+                type: string
+              description: Correlation ID retornado para rastreamento
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorizeTransactionResponse'
+              examples:
+                sucesso:
+                  summary: Autorização aprovada
+                  value:
+                    id_autorizacao: "AUTH-550e8400-e29b-41d4-a716-446655440000"
+                    saldo_reservado: 99900.00
+                    correlation_id: "trace-550e8400-e29b-41d4-a716-446655440001"
+                    status: "APPROVED"
+        "200":
+          description: Idempotência (requisição já foi processada)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorizeTransactionResponse'
+        "402":
+          description: Limite insuficiente (Payment Required)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                error_code: "INSUFFICIENT_LIMIT"
+                message: "Limite insuficiente para autorizar transação"
+                type: "https://api.pod99.io/errors#insufficient-limit"
+                instance: "/v1/contratos/CONTA-001/autorizacoes"
+                correlation_id: "trace-123"
+        "409":
+          description: Conflito de concorrência
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                error_code: "CONFLICT"
+                message: "Conflito de estado na reserva de limite (race condition)"
+                type: "https://api.pod99.io/errors#conflict"
+                correlation_id: "trace-123"
+        "422":
+          description: Validação falhou
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                error_code: "VALIDATION_ERROR"
+                message: "Campo 'valor' deve ser > 0"
+                type: "https://api.pod99.io/errors#validation-error"
+                correlation_id: "trace-123"
+        "429":
+          description: Rate limit excedido
+          headers:
+            X-RateLimit-Reset:
+              schema:
+                type: integer
+              description: Unix timestamp quando limite será resetado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                error_code: "TOO_MANY_REQUESTS"
+                message: "Rate limit excedido (1000 req/min)"
+                type: "https://api.pod99.io/errors#too-many-requests"
+                correlation_id: "trace-123"
+        "503":
+          description: Serviço indisponível (Circuit breaker aberto)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                error_code: "SERVICE_UNAVAILABLE"
+                message: "Circuit breaker aberto, tente novamente em alguns segundos"
+                type: "https://api.pod99.io/errors#service-unavailable"
+                correlation_id: "trace-123"
+      security:
+        - oauth2:
+            - "authorize:write"
+        - lambda_authorizer: []
+
+  /actuator/health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      operationId: healthCheck
+      description: Retorna status de saúde da aplicação
+      responses:
+        "200":
+          description: Serviço está saudável
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [UP, DOWN]
+                  components:
+                    type: object
+                    properties:
+                      dynamodb:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                      eventbridge:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+
+components:
+  schemas:
+    AuthorizeTransactionRequest:
+      type: object
+      required:
+        - id_conta
+        - valor
+        - moeda
+        - tipo_operacao
+      properties:
+        id_conta:
+          type: string
+          pattern: '^[A-Z0-9\-]{1,50}$'
+          example: "ACC-001"
+          description: Número da conta corrente
+        valor:
+          type: number
+          format: decimal
+          minimum: 0.01
+          maximum: 999999.99
+          example: 100.00
+          description: Valor da transação em BRL (2 casas decimais)
+        moeda:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          example: "BRL"
+          description: Código ISO 4217 (ex: BRL, USD, EUR)
+        tipo_operacao:
+          type: string
+          enum:
+            - DEBITO
+            - CREDITO
+            - RESERVA
+            - ESTORNO
+          example: "DEBITO"
+          description: Tipo de operação
+        id_estabelecimento:
+          type: string
+          nullable: true
+          pattern: '^[A-Z0-9\-]{1,50}$'
+          example: "EST-123"
+          description: Identificador do estabelecimento (opcional)
+        metadata:
+          type: object
+          nullable: true
+          example:
+            geolocation: "SP"
+            device_id: "device-456"
+            campaign_id: "BLACK-FRIDAY-2026"
+          description: Atributos adicionais para rastreamento
+
+    AuthorizeTransactionResponse:
+      type: object
+      required:
+        - id_autorizacao
+        - saldo_reservado
+        - correlation_id
+        - status
+      properties:
+        id_autorizacao:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+          description: ID único da autorização gerada
+        saldo_reservado:
+          type: number
+          format: decimal
+          example: 99900.00
+          description: Limite disponível após a reserva
+        correlation_id:
+          type: string
+          format: uuid
+          example: "trace-550e8400-e29b-41d4-a716-446655440001"
+          description: ID de correlação para rastreamento ponta-a-ponta
+        status:
+          type: string
+          enum:
+            - APPROVED
+            - REJECTED
+            - PENDING
+          example: "APPROVED"
+          description: Status da autorização
+
+    ProblemDetails:
+      type: object
+      required:
+        - error_code
+        - message
+        - type
+      properties:
+        error_code:
+          type: string
+          example: "INSUFFICIENT_LIMIT"
+          description: Código de erro estruturado (machine-readable)
+        message:
+          type: string
+          example: "Limite insuficiente para autorizar transação"
+          description: Mensagem de erro legível (human-readable)
+        type:
+          type: string
+          format: uri
+          example: "https://api.pod99.io/errors#insufficient-limit"
+          description: URI referenciando documentação do erro (RFC 7807)
+        instance:
+          type: string
+          format: uri
+          example: "/v1/contratos/CONTA-001/autorizacoes"
+          description: URI da instância específica que causou o erro
+        correlation_id:
+          type: string
+          format: uuid
+          example: "trace-123"
+          description: ID de correlação para rastreamento
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-09-11T18:30:00Z"
+          description: Timestamp quando o erro ocorreu
+
+    TransacaoAutorizadaEvent:
+      type: object
+      description: Evento de domínio publicado em EventBridge (CloudEvents format)
+      required:
+        - event_id
+        - event_type
+        - event_version
+        - occurred_at
+        - id_autorizacao
+        - id_contrato
+        - valor
+        - saldo_reservado
+        - correlation_id
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          description: Identificador único do evento (deduplicação)
+        event_type:
+          type: string
+          enum:
+            - TransacaoAutorizada
+          description: Tipo do evento (nomeado no passado)
+        event_version:
+          type: string
+          example: "1.0"
+          description: Versão do schema do evento (retrocompatibilidade)
+        occurred_at:
+          type: string
+          format: date-time
+          description: Data/hora do fato (UTC, W3C format)
+        id_autorizacao:
+          type: string
+          format: uuid
+          description: Referência à autorização
+        id_contrato:
+          type: string
+          description: Contrato afetado
+        valor:
+          type: number
+          format: decimal
+          description: Valor autorizado em BRL
+        saldo_reservado:
+          type: number
+          format: decimal
+          description: Limite reservado após operação
+        correlation_id:
+          type: string
+          format: uuid
+          description: Rastreio ponta-a-ponta
+        trace_id:
+          type: string
+          nullable: true
+          format: uuid
+          description: ID de trace distribuído (W3C)
+
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.pod99.io/oauth2/token
+          scopes:
+            "authorize:write": "Autorizar transações"
+            "authorize:read": "Consultar autorizações"
+    lambda_authorizer:
+      type: apiKey
+      name: Authorization
+      in: header
+      description: |
+        Lambda Authorizer customizado.
+        Header: Authorization: Bearer <token>
+        Token validado por Lambda function que retorna IAM policy.
+
+info:
+  x-logo:
+    url: https://pod99.io/logo.png
+
+x-amazon-apigateway-gateway-responses:
+  THROTTLED:
+    statusCode: 429
+    responseParameters:
+      gatewayresponse.header.X-RateLimit-Reset: "context.requestTime"
+  BAD_REQUEST_BODY:
+    statusCode: 400
+    responseParameters:
+      gatewayresponse.header.Content-Type: "'application/json'"

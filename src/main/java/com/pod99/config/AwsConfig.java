@@ -44,7 +44,7 @@ public class AwsConfig {
     
     @Bean
     public EventBridgeClient eventBridgeClient() {
-        var builder = EventBridge Client.builder()
+        var builder = EventBridgeClient.builder()
             .region(Region.of(region));
         
         if (!eventBridgeEndpoint.isEmpty()) {

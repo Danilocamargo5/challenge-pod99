@@ -68,7 +68,7 @@ class LimitTest {
         limit.release(new BigDecimal("2000.00"));
         
         // Assert
-        assertEquals(new BigDecimal("97000.00"), limit.getDisponível());
+        assertEquals(new BigDecimal("97000.00"), limit.getDisponivel());
         assertEquals(new BigDecimal("3000.00"), limit.getReservado());
     }
     
