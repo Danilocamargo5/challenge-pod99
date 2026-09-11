@@ -8,9 +8,8 @@ spring:
       region:
         static: ${AWS_REGION:us-east-1}
       credentials:
-        static:
-          access-key: ${AWS_ACCESS_KEY_ID:test}
-          secret-key: ${AWS_SECRET_ACCESS_KEY:test}
+        access-key-id: ${AWS_ACCESS_KEY_ID:test}
+        secret-access-key: ${AWS_SECRET_ACCESS_KEY:test}
   
 server:
   port: ${SERVER_PORT:8080}
