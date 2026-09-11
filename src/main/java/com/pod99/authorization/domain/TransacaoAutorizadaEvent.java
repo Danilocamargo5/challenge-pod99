@@ -2,8 +2,8 @@ package com.pod99.authorization.domain;
 
 import com.pod99.common.domain.DomainEvent;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -11,7 +11,7 @@ import java.time.ZoneId;
 import java.util.UUID;
 
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
 @AllArgsConstructor
 public class TransacaoAutorizadaEvent extends DomainEvent {
@@ -21,17 +21,17 @@ public class TransacaoAutorizadaEvent extends DomainEvent {
     private BigDecimal saldoReservado;
     
     public static TransacaoAutorizadaEvent from(Authorization auth, String traceId) {
-        return TransacaoAutorizadaEvent.builder()
-            .eventId(UUID.randomUUID().toString())
-            .eventType("TransacaoAutorizada")
-            .eventVersion("1.0")
-            .occurredAt(LocalDateTime.now(ZoneId.of("UTC")))
-            .correlationId(auth.getCorrelationId())
-            .traceId(traceId)
-            .idAutorizacao(auth.getIdAutorizacao())
-            .idContrato(auth.getIdContrato())
-            .valor(auth.getValor())
-            .saldoReservado(auth.getSaldoReservado())
-            .build();
+        TransacaoAutorizadaEvent event = new TransacaoAutorizadaEvent();
+        event.setEventId(UUID.randomUUID().toString());
+        event.setEventType("TransacaoAutorizada");
+        event.setEventVersion("1.0");
+        event.setOccurredAt(LocalDateTime.now(ZoneId.of("UTC")));
+        event.setCorrelationId(auth.getCorrelationId());
+        event.setTraceId(traceId);
+        event.setIdAutorizacao(auth.getIdAutorizacao());
+        event.setIdContrato(auth.getIdContrato());
+        event.setValor(auth.getValor());
+        event.setSaldoReservado(auth.getSaldoReservado());
+        return event;
     }
 }
