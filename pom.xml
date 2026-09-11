@@ -48,7 +48,13 @@
 
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
-            <artifactId>events</artifactId>
+            <artifactId>eventbridge</artifactId>
+            <version>${aws-java-sdk.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>sns</artifactId>
             <version>${aws-java-sdk.version}</version>
         </dependency>
 
