@@ -5,7 +5,6 @@ import com.pod99.authorization.application.AuthorizeTransactionResponse;
 import com.pod99.authorization.application.AuthorizeTransactionUseCase;
 import com.pod99.common.exception.InsufficientLimitException;
 import com.pod99.common.exception.LockAcquisitionException;
-import com.pod99.config.LockService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -13,19 +12,23 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 /**
  * HTTP Adapter para Autorização de Transações
  * 
- * Fluxo:
- * 1. Valida Idempotency-Key header
- * 2. Adquire locks distribuídos (LockService)
- * 3. Executa lógica de autorização (seção crítica)
- * 4. Libera locks (LIFO, sempre)
- * 5. Retorna HTTP 201 ou erro apropriado
+ * RESPONSABILIDADES:
+ * - Converter HTTP request → Objects
+ * - Validar headers (Idempotency-Key)
+ * - Chamar UseCase (que cuida dos locks)
+ * - Converter Objects → HTTP response
+ * - Mapear exceções → HTTP status codes
+ * 
+ * NÃO é responsável por:
+ * - Gerenciar locks (UseCase cuida)
+ * - Orquestrar lógica de negócio (UseCase cuida)
+ * - Validar limites (UseCase/Domain cuida)
  */
 @Slf4j
 @RestController
@@ -34,7 +37,6 @@ import java.util.UUID;
 public class AuthorizationController {
     
     private final AuthorizeTransactionUseCase authorizeUseCase;
-    private final LockService lockService;
     
     @PostMapping("/{idContrato}/autorizacoes")
     public ResponseEntity<?> authorize(
@@ -48,88 +50,70 @@ public class AuthorizationController {
         MDC.put("X-Correlation-ID", correlationId);
         MDC.put("X-Trace-ID", traceId);
         
-        log.info("🔐 Iniciando autorização: contrato={}, conta={}, key={}", 
-            idContrato, request.getIdConta(), idempotencyKey);
-        
-        List<String> acquiredLocks = null;
+        log.info("📡 POST /v1/contratos/{}/autorizacoes | key={} | conta={}", 
+            idContrato, idempotencyKey, request.getIdConta());
         
         try {
-            // 1️⃣ ADQUIRIR LOCKS (seção crítica)
-            log.info("🔒 Adquirindo locks: conta={}, contrato={}", 
-                request.getIdConta(), idContrato);
-            
-            acquiredLocks = lockService.acquireTransactionLocks(
-                request.getIdConta(),  // Lock 1: por conta
-                idContrato);           // Lock 2: por contrato
-            
-            log.info("✅ Locks adquiridos: {}", acquiredLocks);
-            
-            // 2️⃣ EXECUTAR USE CASE (dentro de seção crítica)
+            // ✅ UseCase cuida de:
+            // - Adquirir locks
+            // - Validar limites
+            // - Atualizar estado
+            // - Publicar eventos
+            // - Liberar locks
             AuthorizeTransactionResponse response = authorizeUseCase.execute(
                 idContrato, request, idempotencyKey);
             
-            log.info("✅ Autorização aprovada: id={}", response.getIdAutorizacao());
+            log.info("✅ Autorização aprovada: {}", response.getIdAutorizacao());
             
             return ResponseEntity
-                .status(HttpStatus.CREATED)
+                .status(HttpStatus.CREATED)  // 201
                 .body(response);
                 
         } catch (LockAcquisitionException e) {
-            // 3️⃣ CONFLITO: Não conseguiu adquirir lock (race condition)
-            log.warn("⚠️ Conflito de concorrência (lock): {}", e.getMessage());
+            // 🔒 Conflito de concorrência (não conseguiu adquirir lock)
+            log.warn("⚠️ Conflito: {}", e.getMessage());
             return ResponseEntity
-                .status(HttpStatus.CONFLICT)
+                .status(HttpStatus.CONFLICT)  // 409
                 .body(Map.of(
                     "error_code", "CONFLICT",
-                    "message", "Conflito de concorrência: não foi possível adquirir lock",
-                    "correlation_id", MDC.get("X-Correlation-ID")
+                    "message", "Conflito de concorrência ao processar autorização",
+                    "correlation_id", correlationId
                 ));
                 
         } catch (InsufficientLimitException e) {
-            // 4️⃣ LIMITE INSUFICIENTE
+            // ❌ Limite insuficiente
             log.warn("❌ Limite insuficiente: {}", e.getMessage());
             return ResponseEntity
-                .status(HttpStatus.PAYMENT_REQUIRED)
+                .status(HttpStatus.PAYMENT_REQUIRED)  // 402
                 .body(Map.of(
                     "error_code", "INSUFFICIENT_LIMIT",
                     "message", e.getMessage(),
-                    "correlation_id", MDC.get("X-Correlation-ID")
+                    "correlation_id", correlationId
                 ));
                 
         } catch (IllegalArgumentException e) {
-            // 5️⃣ VALIDAÇÃO FALHOU
-            log.warn("⚠️ Validação falhou: {}", e.getMessage());
+            // ⚠️ Validação falhou
+            log.warn("⚠️ Validação: {}", e.getMessage());
             return ResponseEntity
-                .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .status(HttpStatus.UNPROCESSABLE_ENTITY)  // 422
                 .body(Map.of(
                     "error_code", "VALIDATION_ERROR",
                     "message", e.getMessage(),
-                    "correlation_id", MDC.get("X-Correlation-ID")
+                    "correlation_id", correlationId
                 ));
                 
         } catch (Exception e) {
-            // 6️⃣ ERRO INTERNO
-            log.error("❌ Erro ao autorizar transação", e);
+            // 💥 Erro interno
+            log.error("❌ Erro ao processar autorização", e);
             return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)  // 500
                 .body(Map.of(
                     "error_code", "INTERNAL_ERROR",
                     "message", "Erro interno ao processar autorização",
-                    "correlation_id", MDC.get("X-Correlation-ID")
+                    "correlation_id", correlationId
                 ));
                 
         } finally {
-            // 7️⃣ LIBERAR LOCKS (SEMPRE - seção crítica finalizada)
-            if (acquiredLocks != null && !acquiredLocks.isEmpty()) {
-                try {
-                    log.info("🔓 Liberando locks: {}", acquiredLocks);
-                    lockService.releaseLocks(acquiredLocks);
-                    log.info("✅ Locks liberados");
-                } catch (Exception e) {
-                    log.error("⚠️ Erro ao liberar locks", e);
-                    // Não propaga erro (locks têm TTL 30s)
-                }
-            }
             MDC.clear();
         }
     }

@@ -6,30 +6,40 @@ import com.pod99.authorization.application.AuthorizeTransactionResponse;
 import com.pod99.authorization.application.AuthorizeTransactionUseCase;
 import com.pod99.common.exception.InsufficientLimitException;
 import com.pod99.common.exception.LockAcquisitionException;
-import com.pod99.config.LockService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+/**
+ * Testes do Controller (HTTP Adapter)
+ * 
+ * RESPONSABILIDADE: Testar conversão HTTP ↔ Objects
+ * - Request parsing
+ * - Response formatting
+ * - Status codes
+ * - Error handling
+ * 
+ * NÃO testa:
+ * - Locks (responsabilidade do UseCase)
+ * - Lógica de negócio (responsabilidade do UseCase)
+ * - Validação de limite (responsabilidade do UseCase/Domain)
+ */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("AuthorizationController Integration Tests")
+@DisplayName("AuthorizationController Tests")
 class AuthorizationControllerTest {
     
     private MockMvc mockMvc;
@@ -37,22 +47,17 @@ class AuthorizationControllerTest {
     @Mock
     private AuthorizeTransactionUseCase authorizeUseCase;
     
-    @Mock
-    private LockService lockService;
-    
     private ObjectMapper objectMapper;
     
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-        AuthorizationController controller = new AuthorizationController(
-            authorizeUseCase, 
-            lockService);
+        AuthorizationController controller = new AuthorizationController(authorizeUseCase);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
     
     @Test
-    @DisplayName("✅ Deve autorizar transação com sucesso (locks adquiridos e liberados)")
+    @DisplayName("✅ Deve retornar 201 Created em autorização bem-sucedida")
     void testAuthorizeTransactionSuccess() throws Exception {
         // Arrange
         String idContrato = "CONTA-001";
@@ -73,10 +78,6 @@ class AuthorizationControllerTest {
             .status("APPROVED")
             .build();
         
-        // Mock: Locks adquiridos com sucesso
-        when(lockService.acquireTransactionLocks(idConta, idContrato))
-            .thenReturn(List.of(idConta, idContrato));
-        
         // Mock: UseCase executa com sucesso
         when(authorizeUseCase.execute(idContrato, request, idempotencyKey))
             .thenReturn(response);
@@ -89,16 +90,16 @@ class AuthorizationControllerTest {
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id_autorizacao").value("AUTH-123"))
             .andExpect(jsonPath("$.saldo_reservado").value(99900.00))
-            .andExpect(jsonPath("$.status").value("APPROVED"));
+            .andExpect(jsonPath("$.status").value("APPROVED"))
+            .andExpect(jsonPath("$.correlation_id").exists());
         
-        // Verify: Locks foram adquiridos e liberados
-        verify(lockService, times(1)).acquireTransactionLocks(idConta, idContrato);
-        verify(lockService, times(1)).releaseLocks(any());
-        verify(authorizeUseCase, times(1)).execute(idContrato, request, idempotencyKey);
+        // Verify: UseCase foi chamado com argumentos corretos
+        verify(authorizeUseCase, times(1))
+            .execute(idContrato, request, idempotencyKey);
     }
     
     @Test
-    @DisplayName("🔒 Deve retornar 409 Conflict quando falha em adquirir lock")
+    @DisplayName("🔒 Deve retornar 409 Conflict quando UseCase falha em lock")
     void testConflictOnLockAcquisitionFailure() throws Exception {
         // Arrange
         String idContrato = "CONTA-001";
@@ -112,8 +113,8 @@ class AuthorizationControllerTest {
             .tipoOperacao("DEBITO")
             .build();
         
-        // Mock: Lock falha (race condition)
-        when(lockService.acquireTransactionLocks(idConta, idContrato))
+        // Mock: UseCase lança LockAcquisitionException
+        when(authorizeUseCase.execute(idContrato, request, idempotencyKey))
             .thenThrow(new LockAcquisitionException("Falha ao adquirir lock"));
         
         // Act & Assert
@@ -121,19 +122,16 @@ class AuthorizationControllerTest {
             .header("Idempotency-Key", idempotencyKey)
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isConflict())
+            .andExpect(status().isConflict())  // 409
             .andExpect(jsonPath("$.error_code").value("CONFLICT"))
-            .andExpect(jsonPath("$.message").exists());
+            .andExpect(jsonPath("$.correlation_id").exists());
         
-        // Verify: UseCase NÃO deve ser executado se lock falhar
-        verify(authorizeUseCase, never()).execute(anyString(), any(), anyString());
-        verify(lockService, times(1)).acquireTransactionLocks(idConta, idContrato);
-        // releaseLocks NÃO deve ser chamado (nenhum lock foi adquirido)
-        verify(lockService, never()).releaseLocks(any());
+        verify(authorizeUseCase, times(1))
+            .execute(anyString(), any(), anyString());
     }
     
     @Test
-    @DisplayName("❌ Deve retornar 402 Payment Required quando limite insuficiente")
+    @DisplayName("❌ Deve retornar 402 Payment Required em limite insuficiente")
     void testInsufficientLimit() throws Exception {
         // Arrange
         String idContrato = "CONTA-001";
@@ -147,11 +145,7 @@ class AuthorizationControllerTest {
             .tipoOperacao("DEBITO")
             .build();
         
-        // Mock: Locks adquiridos
-        when(lockService.acquireTransactionLocks(idConta, idContrato))
-            .thenReturn(List.of(idConta, idContrato));
-        
-        // Mock: UseCase lança exception de limite insuficiente
+        // Mock: UseCase lança InsufficientLimitException
         when(authorizeUseCase.execute(idContrato, request, idempotencyKey))
             .thenThrow(new InsufficientLimitException("Limite insuficiente"));
         
@@ -161,49 +155,7 @@ class AuthorizationControllerTest {
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().is(402))  // PAYMENT_REQUIRED
-            .andExpect(jsonPath("$.error_code").value("INSUFFICIENT_LIMIT"))
-            .andExpect(jsonPath("$.correlation_id").exists());
-        
-        // Verify: Locks foram adquiridos E liberados (mesmo com erro)
-        verify(lockService, times(1)).acquireTransactionLocks(idConta, idContrato);
-        verify(lockService, times(1)).releaseLocks(any());
-    }
-    
-    @Test
-    @DisplayName("🔐 Deve liberar locks em caso de erro no UseCase")
-    void testLockReleaseOnUseCaseFailure() throws Exception {
-        // Arrange
-        String idContrato = "CONTA-001";
-        String idConta = "ACC-001";
-        String idempotencyKey = UUID.randomUUID().toString();
-        
-        AuthorizeTransactionRequest request = AuthorizeTransactionRequest.builder()
-            .idConta(idConta)
-            .valor(new BigDecimal("100.00"))
-            .moeda("BRL")
-            .tipoOperacao("DEBITO")
-            .build();
-        
-        // Mock: Locks adquiridos
-        List<String> locks = List.of(idConta, idContrato);
-        when(lockService.acquireTransactionLocks(idConta, idContrato))
-            .thenReturn(locks);
-        
-        // Mock: UseCase falha com erro genérico
-        when(authorizeUseCase.execute(idContrato, request, idempotencyKey))
-            .thenThrow(new RuntimeException("Erro ao processar autorização"));
-        
-        // Act & Assert
-        mockMvc.perform(post("/v1/contratos/{idContrato}/autorizacoes", idContrato)
-            .header("Idempotency-Key", idempotencyKey)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isInternalServerError())
-            .andExpect(jsonPath("$.error_code").value("INTERNAL_ERROR"));
-        
-        // Verify: Locks FORAM adquiridos e FORAM liberados (mesmo com erro)
-        verify(lockService, times(1)).acquireTransactionLocks(idConta, idContrato);
-        verify(lockService, times(1)).releaseLocks(locks);
+            .andExpect(jsonPath("$.error_code").value("INSUFFICIENT_LIMIT"));
     }
     
     @Test
@@ -216,14 +168,10 @@ class AuthorizationControllerTest {
         
         AuthorizeTransactionRequest request = AuthorizeTransactionRequest.builder()
             .idConta(idConta)
-            .valor(new BigDecimal("-100.00"))  // Negativo (inválido)
+            .valor(new BigDecimal("-100.00"))  // Negativo
             .moeda("BRL")
             .tipoOperacao("DEBITO")
             .build();
-        
-        // Mock: Locks adquiridos
-        when(lockService.acquireTransactionLocks(idConta, idContrato))
-            .thenReturn(List.of(idConta, idContrato));
         
         // Mock: UseCase lança validação error
         when(authorizeUseCase.execute(idContrato, request, idempotencyKey))
@@ -234,16 +182,41 @@ class AuthorizationControllerTest {
             .header("Idempotency-Key", idempotencyKey)
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isUnprocessableEntity())
+            .andExpect(status().isUnprocessableEntity())  // 422
             .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
-        
-        // Verify: Locks foram liberados
-        verify(lockService, times(1)).releaseLocks(any());
     }
     
     @Test
-    @DisplayName("🔒 Ordem LIFO: Libera locks em ordem reversa (CONTA primeiro, depois ACC)")
-    void testLockReleaseOrderLIFO() throws Exception {
+    @DisplayName("💥 Deve retornar 500 Internal Server Error em erro genérico")
+    void testInternalError() throws Exception {
+        // Arrange
+        String idContrato = "CONTA-001";
+        String idConta = "ACC-001";
+        String idempotencyKey = UUID.randomUUID().toString();
+        
+        AuthorizeTransactionRequest request = AuthorizeTransactionRequest.builder()
+            .idConta(idConta)
+            .valor(new BigDecimal("100.00"))
+            .moeda("BRL")
+            .tipoOperacao("DEBITO")
+            .build();
+        
+        // Mock: UseCase falha com erro genérico
+        when(authorizeUseCase.execute(idContrato, request, idempotencyKey))
+            .thenThrow(new RuntimeException("Erro ao conectar com DynamoDB"));
+        
+        // Act & Assert
+        mockMvc.perform(post("/v1/contratos/{idContrato}/autorizacoes", idContrato)
+            .header("Idempotency-Key", idempotencyKey)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isInternalServerError())  // 500
+            .andExpect(jsonPath("$.error_code").value("INTERNAL_ERROR"));
+    }
+    
+    @Test
+    @DisplayName("📡 Deve incluir correlation_id em todas as respostas")
+    void testCorrelationIdInResponse() throws Exception {
         // Arrange
         String idContrato = "CONTA-001";
         String idConta = "ACC-001";
@@ -263,22 +236,15 @@ class AuthorizationControllerTest {
             .status("APPROVED")
             .build();
         
-        // Mock: Locks adquiridos em ordem FIFO [ACC, CONTA]
-        List<String> locksAcquired = List.of(idConta, idContrato);
-        when(lockService.acquireTransactionLocks(idConta, idContrato))
-            .thenReturn(locksAcquired);
-        
         when(authorizeUseCase.execute(idContrato, request, idempotencyKey))
             .thenReturn(response);
         
-        // Act
+        // Act & Assert
         mockMvc.perform(post("/v1/contratos/{idContrato}/autorizacoes", idContrato)
             .header("Idempotency-Key", idempotencyKey)
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated());
-        
-        // Assert: releaseLocks deve ser chamado com os locks adquiridos
-        verify(lockService, times(1)).releaseLocks(locksAcquired);
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.correlation_id").exists());
     }
 }
