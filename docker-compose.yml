@@ -2,12 +2,14 @@ services:
   # DynamoDB Local
   dynamodb-local:
     image: amazon/dynamodb-local:latest
+    container_name: dynamodb-local
     ports:
       - "8000:8000"
     command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
     environment:
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
+    hostname: dynamodb-local
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 5s
@@ -16,7 +18,8 @@ services:
 
   # LocalStack (emula AWS: EventBridge, SQS, API Gateway)
   localstack:
-    image: localstack/localstack:latest
+    image: localstack/localstack:2.0.0
+    container_name: localstack
     ports:
       - "4566:4566"
     environment:
@@ -24,8 +27,11 @@ services:
       - DEBUG=1
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
+      - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
       - ./infra/localstack-init.sh:/docker-entrypoint-initaws.d/init-services.sh
+      - /var/run/docker.sock:/var/run/docker.sock
+    hostname: localstack
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
       interval: 5s
