@@ -291,12 +291,18 @@ class AuthorizeTransactionUseCaseTest {
             .thenReturn(Optional.empty());
         when(limitRepository.findByContractId(idContrato))
             .thenReturn(Optional.of(limit));
-        when(authRepository.save(any()))
-            .thenReturn(null);
         
-        // Mock: Evento falha
-        when(eventPublisher.publish(any()))
-            .thenThrow(new RuntimeException("EventBridge timeout"));
+        Authorization savedAuth = Authorization.builder()
+            .idAutorizacao("AUTH-123")
+            .idContrato(idContrato)
+            .valor(new BigDecimal("100.00"))
+            .build();
+        when(authRepository.save(any()))
+            .thenReturn(savedAuth);
+        
+        // Mock: Evento falha (doThrow para métodos void)
+        doThrow(new RuntimeException("EventBridge timeout"))
+            .when(eventPublisher).publish(any());
         
         AuthorizeTransactionRequest request = AuthorizeTransactionRequest.builder()
             .idConta(idConta)

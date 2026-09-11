@@ -67,7 +67,12 @@ public class LoadTest {
         // Setup: Criar limites para os testes
         for (int i = 0; i < 100; i++) {
             String contractId = "CONTRACT-" + String.format("%03d", i);
-            Limit limit = Limit.criar(contractId, "ACC-001", new BigDecimal("100000.00"));
+            Limit limit = Limit.builder()
+                .idContrato(contractId)
+                .limite(new BigDecimal("100000.00"))
+                .disponivel(new BigDecimal("100000.00"))
+                .reservado(BigDecimal.ZERO)
+                .build();
             limitRepository.save(limit);
         }
     }

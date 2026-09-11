@@ -45,7 +45,7 @@ class LockServiceTest {
         assertEquals(2, locks.size());
         assertTrue(locks.contains(idAutorizacao));
         assertTrue(locks.contains(idContrato));
-        verify(dynamoDbClient, times(2)).putItem(any());
+        verify(dynamoDbClient, times(2)).putItem(any(PutItemRequest.class));
     }
     
     @Test
@@ -66,7 +66,7 @@ class LockServiceTest {
         
         // Assert
         assertEquals(2, locks.size());
-        verify(dynamoDbClient, atLeast(3)).putItem(any());  // 3 chamadas (1 fail + 2 success)
+        verify(dynamoDbClient, atLeast(3)).putItem(any(PutItemRequest.class));  // 3 chamadas (1 fail + 2 success)
     }
     
     @Test
@@ -83,7 +83,7 @@ class LockServiceTest {
         assertThrows(LockAcquisitionException.class,
             () -> lockService.acquireTransactionLocks(idAutorizacao, idContrato));
         
-        verify(dynamoDbClient, atLeast(5)).putItem(any());  // Pelo menos 5 tentativas
+        verify(dynamoDbClient, atLeast(5)).putItem(any(PutItemRequest.class));  // Pelo menos 5 tentativas
     }
     
     @Test
@@ -99,7 +99,7 @@ class LockServiceTest {
         lockService.releaseLocks(locks);
         
         // Assert
-        verify(dynamoDbClient, times(2)).deleteItem(any());
+        verify(dynamoDbClient, times(2)).deleteItem(any(DeleteItemRequest.class));
         // Verificar ordem: CONTA-001 liberado antes de AUTH-123 (LIFO)
     }
     
