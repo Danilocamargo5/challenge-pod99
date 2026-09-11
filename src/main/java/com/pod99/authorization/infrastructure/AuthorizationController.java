@@ -51,6 +51,12 @@ public class AuthorizationController {
         return ResponseEntity.ok(request);
     }
     
+    @PostMapping("/test3")
+    public ResponseEntity<?> test3(@RequestBody Map<String, Object> request) {
+        log.info("✅ Test3 recebeu Map: {}", request);
+        return ResponseEntity.ok(request);
+    }
+    
     @PostMapping("/{idContrato}/autorizacoes")
     public ResponseEntity<?> authorize(
             @PathVariable String idContrato,
