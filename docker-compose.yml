@@ -18,7 +18,7 @@ services:
 
   # LocalStack (emula AWS: EventBridge, SQS, API Gateway)
   localstack:
-    image: localstack/localstack:2.0.0
+    image: localstack/localstack:4.14.0
     container_name: localstack
     ports:
       - "4566:4566"
