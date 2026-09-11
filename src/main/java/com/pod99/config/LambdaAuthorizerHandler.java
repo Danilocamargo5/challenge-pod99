@@ -1,189 +1,198 @@
 package com.pod99.config;
 
+import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
- * Lambda Authorizer para validar OAuth2 tokens
+ * Lambda Authorizer para API Gateway
  * 
- * Executa como função AWS Lambda quando cliente envia:
- * Authorization: Bearer <token>
+ * Valida JWT simples no header Authorization: Bearer <token>
  * 
- * Token é validado via:
- * 1. Assinatura JWT (HMAC-SHA256 com secret)
- * 2. Expiração (exp claim)
- * 3. Scope (authorize:write, authorize:read)
+ * Para DEMONSTRAÇÃO: aceita qualquer token no formato Bearer <algo>
+ * Em PRODUÇÃO: validar assinatura JWT com chave pública
  * 
- * Retorna:
- * - 200 + IAM Policy (permitido)
- * - 401 (negado)
- * 
- * Nota: Em produção, usar AWS Cognito ou Auth0 real.
- * Este é um stub de exemplo.
+ * Fluxo:
+ * 1. API Gateway intercepta request
+ * 2. Chama Lambda Authorizer
+ * 3. Lambda valida JWT
+ * 4. Retorna policy (Allow/Deny)
+ * 5. Se Allow: request vai pra aplicação
+ * 6. Se Deny: API Gateway retorna 403
  */
 @Slf4j
-public class LambdaAuthorizerHandler {
+public class LambdaAuthorizerHandler implements RequestHandler<Map<String, Object>, Map<String, Object>> {
     
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    private static final String TOKEN_SECRET = System.getenv("TOKEN_SECRET");
+    private static final String UNAUTHORIZED = "Unauthorized";
     
-    /**
-     * Handler invocado por API Gateway
-     * 
-     * Event contém:
-     * {
-     *   "authorizationToken": "Bearer eyJhbGc...",
-     *   "methodArn": "arn:aws:execute-api:us-east-1:..."
-     * }
-     */
-    public Map<String, Object> handleAuthorizationRequest(Map<String, Object> event) {
+    @Override
+    public Map<String, Object> handleRequest(Map<String, Object> event, Context context) {
+        log.info("🔐 Lambda Authorizer iniciado");
+        
         try {
-            String token = (String) event.get("authorizationToken");
-            String methodArn = (String) event.get("methodArn");
+            // 1. Extrair token do header
+            String token = extractToken(event);
             
-            log.info("🔐 Validando token...");
-            
-            // 1. Extrair token (remover "Bearer ")
-            if (token == null || !token.startsWith("Bearer ")) {
-                log.warn("⚠️ Token formato inválido");
-                return generateDenyPolicy("user", methodArn);
+            // 2. Validar token
+            if (token == null || token.isEmpty()) {
+                log.warn("⚠️ Token não fornecido");
+                return denyPolicy(event, UNAUTHORIZED);
             }
             
-            String jwtToken = token.substring("Bearer ".length());
+            // 3. Parse do token (simples para demonstração)
+            // Em produção: validar assinatura JWT com RS256
+            String accountId = validateAndExtractAccountId(token);
             
-            // 2. Validar JWT
-            Map<String, Object> claims = validateJWT(jwtToken);
-            
-            if (claims == null) {
-                log.warn("❌ Token inválido ou expirado");
-                return generateDenyPolicy("user", methodArn);
+            if (accountId == null) {
+                log.warn("⚠️ Token inválido");
+                return denyPolicy(event, UNAUTHORIZED);
             }
             
-            // 3. Extrair scopes
-            @SuppressWarnings("unchecked")
-            List<String> scopes = (List<String>) claims.getOrDefault("scopes", new ArrayList<>());
-            String principalId = (String) claims.get("sub");
+            log.info("✅ Token válido para conta: {}", accountId);
             
-            // 4. Gerar IAM Policy (ALLOW)
-            log.info("✅ Token válido: user={}, scopes={}", principalId, scopes);
-            Map<String, Object> policy = generateAllowPolicy(principalId, methodArn);
-            
-            // 5. Adicionar contexto (opcional)
-            @SuppressWarnings("unchecked")
-            Map<String, Object> context = (Map<String, Object>) policy.get("context");
-            context.put("principalId", principalId);
-            context.put("scopes", String.join(",", scopes));
-            
-            return policy;
+            // 4. Retornar policy de permissão
+            return allowPolicy(event, accountId);
             
         } catch (Exception e) {
-            log.error("❌ Erro na autorização", e);
-            return generateDenyPolicy("user", (String) event.get("methodArn"));
+            log.error("❌ Erro ao validar token", e);
+            return denyPolicy(event, UNAUTHORIZED);
         }
     }
     
     /**
-     * Valida JWT token
-     * 
-     * Formato JWT: header.payload.signature
-     * Valida:
-     * - Assinatura HMAC-SHA256
-     * - Expiração (exp claim)
-     * - Issuer (iss claim)
-     * 
-     * @return Claims se válido, null se inválido
+     * Extrai o token do header Authorization: Bearer <token>
      */
-    private Map<String, Object> validateJWT(String token) {
+    private String extractToken(Map<String, Object> event) {
         try {
-            String[] parts = token.split("\\.");
-            if (parts.length != 3) {
+            // Event structure:
+            // {
+            //   "type": "TOKEN",
+            //   "authorizationToken": "Bearer eyJhbGciOiJIUzI1NiIsInR...",
+            //   "methodArn": "arn:aws:execute-api:region:account-id:api-id/stage/METHOD/resource-path"
+            // }
+            
+            String authorizationToken = (String) event.get("authorizationToken");
+            if (authorizationToken == null || authorizationToken.isEmpty()) {
                 return null;
             }
             
-            // Decodificar payload (parte 2)
-            String payload = new String(Base64.getDecoder().decode(parts[1]), StandardCharsets.UTF_8);
-            @SuppressWarnings("unchecked")
-            Map<String, Object> claims = objectMapper.readValue(payload, Map.class);
-            
-            // Validar expiração
-            Long exp = ((Number) claims.getOrDefault("exp", 0L)).longValue();
-            if (exp * 1000 < System.currentTimeMillis()) {
-                log.warn("⚠️ Token expirado");
+            // Esperado: "Bearer <token>"
+            if (!authorizationToken.startsWith("Bearer ")) {
                 return null;
             }
             
-            // Validar issuer (opcional)
-            String iss = (String) claims.get("iss");
-            if (iss == null || !iss.contains("pod99.io")) {
-                log.warn("⚠️ Issuer inválido: {}", iss);
-                // Em produção, rejeitar. Aqui permitimos por demo.
-            }
-            
-            // Validar assinatura (HMAC-SHA256)
-            // IMPORTANTE: Em produção, usar JWT library (jjwt, nimbus-jose-jwt)
-            // Este é um stub simplificado.
-            
-            log.debug("✅ JWT válido: sub={}, exp={}", claims.get("sub"), exp);
-            return claims;
+            return authorizationToken.substring(7); // Remove "Bearer "
             
         } catch (Exception e) {
-            log.error("❌ Erro ao validar JWT", e);
+            log.error("Erro ao extrair token", e);
             return null;
         }
     }
     
     /**
-     * Gera IAM Policy de ALLOW
-     */
-    private Map<String, Object> generateAllowPolicy(String principalId, String methodArn) {
-        return generatePolicy(principalId, methodArn, "Allow");
-    }
-    
-    /**
-     * Gera IAM Policy de DENY
-     */
-    private Map<String, Object> generateDenyPolicy(String principalId, String methodArn) {
-        return generatePolicy(principalId, methodArn, "Deny");
-    }
-    
-    /**
-     * Gera IAM Policy
+     * Valida o token e extrai o ID da conta
      * 
-     * Formato:
+     * Para DEMONSTRAÇÃO: aceita qualquer token Bearer <algo>
+     * Em PRODUÇÃO: 
+     * - Verificar assinatura JWT com chave pública
+     * - Validar expiração
+     * - Validar issuer/audience
+     */
+    private String validateAndExtractAccountId(String token) {
+        try {
+            // Para DEMONSTRAÇÃO:
+            // Token simples: "jwt-<account-id>" ou "test-account-123"
+            // Em PRODUÇÃO: fazer parse do JWT e validar assinatura
+            
+            // ⚠️ DEMONSTRAÇÃO: aceita qualquer token
+            if (token.isEmpty()) {
+                return null;
+            }
+            
+            // Extrair account ID do token (formato: "jwt-ACCOUNT-001" ou similar)
+            if (token.startsWith("jwt-")) {
+                return token.substring(4); // "ACCOUNT-001"
+            }
+            
+            // Fallback: usar token como account ID direto
+            // (não fazer em produção!)
+            return "ACC-" + token.substring(0, Math.min(10, token.length()));
+            
+        } catch (Exception e) {
+            log.error("Erro ao validar token", e);
+            return null;
+        }
+    }
+    
+    /**
+     * Retorna policy de PERMISSÃO
+     */
+    private Map<String, Object> allowPolicy(Map<String, Object> event, String principalId) {
+        return authPolicy(event, "Allow", principalId);
+    }
+    
+    /**
+     * Retorna policy de NEGAÇÃO
+     */
+    private Map<String, Object> denyPolicy(Map<String, Object> event, String principalId) {
+        return authPolicy(event, "Deny", principalId);
+    }
+    
+    /**
+     * Constrói o response de autorização do Lambda Authorizer
+     * 
+     * Formato esperado pelo API Gateway:
      * {
-     *   "principalId": "user123",
+     *   "principalId": "user-123",
      *   "policyDocument": {
      *     "Version": "2012-10-17",
      *     "Statement": [
      *       {
      *         "Action": "execute-api:Invoke",
-     *         "Effect": "Allow",
-     *         "Resource": "arn:aws:execute-api:..."
+     *         "Effect": "Allow|Deny",
+     *         "Resource": "arn:aws:execute-api:region:account-id:api-id/stage/METHOD/resource-path"
      *       }
      *     ]
      *   },
-     *   "context": {}
+     *   "context": {
+     *     "accountId": "ACC-001"
+     *   }
      * }
      */
-    private Map<String, Object> generatePolicy(String principalId, String methodArn, String effect) {
-        Map<String, Object> policy = new HashMap<>();
-        policy.put("principalId", principalId);
+    private Map<String, Object> authPolicy(Map<String, Object> event, String effect, String principalId) {
+        String methodArn = (String) event.get("methodArn");
         
+        // methodArn: arn:aws:execute-api:region:account-id:api-id/stage/METHOD/resource-path
+        // Extrair wildcards pra cobrir toda a API
+        String apiGatewayArn = methodArn.substring(0, methodArn.lastIndexOf("/"));
+        String apiGatewayArnPartial = apiGatewayArn.substring(0, apiGatewayArn.lastIndexOf("/")) + "/*";
+        
+        Map<String, Object> authResponse = new HashMap<>();
+        authResponse.put("principalId", principalId);
+        
+        // Policy document
         Map<String, Object> policyDocument = new HashMap<>();
         policyDocument.put("Version", "2012-10-17");
         
+        // Statement (permite/nega execute-api:Invoke)
         Map<String, Object> statement = new HashMap<>();
         statement.put("Action", "execute-api:Invoke");
-        statement.put("Effect", effect);
-        statement.put("Resource", methodArn);
+        statement.put("Effect", effect); // "Allow" ou "Deny"
+        statement.put("Resource", apiGatewayArnPartial);
         
-        policyDocument.put("Statement", List.of(statement));
-        policy.put("policyDocument", policyDocument);
-        policy.put("context", new HashMap<String, Object>());
+        policyDocument.put("Statement", Collections.singletonList(statement));
+        authResponse.put("policyDocument", policyDocument);
         
-        return policy;
+        // Context (passado pro controller via $context.authorizer)
+        Map<String, Object> context = new HashMap<>();
+        context.put("accountId", principalId);
+        context.put("requestTimeEpoch", System.currentTimeMillis());
+        authResponse.put("context", context);
+        
+        return authResponse;
     }
 }

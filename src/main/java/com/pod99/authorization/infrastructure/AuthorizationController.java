@@ -5,6 +5,7 @@ import com.pod99.authorization.application.AuthorizeTransactionResponse;
 import com.pod99.authorization.application.AuthorizeTransactionUseCase;
 import com.pod99.common.exception.InsufficientLimitException;
 import com.pod99.common.exception.LockAcquisitionException;
+import com.pod99.common.exception.ProblemDetail;
 import com.pod99.common.exception.RateLimitExceededException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +14,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -48,6 +48,7 @@ public class AuthorizationController {
         
         String correlationId = UUID.randomUUID().toString();
         String traceId = UUID.randomUUID().toString();
+        String instance = String.format("/v1/contratos/%s/autorizacoes", idContrato);
         
         MDC.put("X-Correlation-ID", correlationId);
         MDC.put("X-Trace-ID", traceId);
@@ -56,79 +57,70 @@ public class AuthorizationController {
             idContrato, idempotencyKey, request.getIdConta());
         
         try {
-            // ✅ UseCase cuida de:
-            // - Adquirir locks
-            // - Validar limites
-            // - Atualizar estado
-            // - Publicar eventos
-            // - Liberar locks
             AuthorizeTransactionResponse response = authorizeUseCase.execute(
                 idContrato, request, idempotencyKey);
             
             log.info("✅ Autorização aprovada: {}", response.getIdAutorizacao());
             
+            // ℹ️ Status 200 se for repetição (idempotência), 201 se for novo
+            HttpStatus status = response.isRepetition() ? HttpStatus.OK : HttpStatus.CREATED;
+            
             return ResponseEntity
-                .status(HttpStatus.CREATED)  // 201
+                .status(status)
                 .body(response);
                 
         } catch (RateLimitExceededException e) {
-            // 🚦 Rate limit excedido
             log.warn("🚦 Rate limit excedido para conta {}: {}", e.getAccountId(), e.getMessage());
             return ResponseEntity
-                .status(HttpStatus.TOO_MANY_REQUESTS)  // 429
+                .status(HttpStatus.TOO_MANY_REQUESTS)
                 .header("Retry-After", String.valueOf(e.getRetryAfterSeconds()))
-                .body(Map.of(
-                    "error_code", "RATE_LIMIT_EXCEEDED",
-                    "message", String.format(
-                        "Rate limit excedido: máximo %d requisições por segundo",
-                        e.getLimitPerSecond()
-                    ),
-                    "retry_after_seconds", e.getRetryAfterSeconds(),
-                    "correlation_id", correlationId
+                .body(ProblemDetail.rateLimitExceeded(
+                    String.format("Rate limit excedido: máximo %d requisições por segundo", e.getLimitPerSecond()),
+                    instance,
+                    correlationId
                 ));
         
         } catch (LockAcquisitionException e) {
-            // 🔒 Conflito de concorrência (não conseguiu adquirir lock)
             log.warn("⚠️ Conflito: {}", e.getMessage());
             return ResponseEntity
-                .status(HttpStatus.CONFLICT)  // 409
-                .body(Map.of(
-                    "error_code", "CONFLICT",
-                    "message", "Conflito de concorrência ao processar autorização",
-                    "correlation_id", correlationId
+                .status(HttpStatus.CONFLICT)
+                .body(ProblemDetail.conflict(
+                    "Conflito de concorrência ao processar autorização",
+                    instance,
+                    correlationId
                 ));
                 
         } catch (InsufficientLimitException e) {
-            // ❌ Limite insuficiente
             log.warn("❌ Limite insuficiente: {}", e.getMessage());
             return ResponseEntity
-                .status(HttpStatus.PAYMENT_REQUIRED)  // 402
-                .body(Map.of(
-                    "error_code", "INSUFFICIENT_LIMIT",
-                    "message", e.getMessage(),
-                    "correlation_id", correlationId
+                .status(HttpStatus.PAYMENT_REQUIRED)
+                .body(ProblemDetail.insufficientLimit(
+                    e.getMessage(),
+                    instance,
+                    correlationId
                 ));
                 
         } catch (IllegalArgumentException e) {
-            // ⚠️ Validação falhou
             log.warn("⚠️ Validação: {}", e.getMessage());
             return ResponseEntity
-                .status(HttpStatus.UNPROCESSABLE_ENTITY)  // 422
-                .body(Map.of(
-                    "error_code", "VALIDATION_ERROR",
-                    "message", e.getMessage(),
-                    "correlation_id", correlationId
+                .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ProblemDetail.validationError(
+                    e.getMessage(),
+                    instance,
+                    correlationId
                 ));
                 
         } catch (Exception e) {
-            // 💥 Erro interno
             log.error("❌ Erro ao processar autorização", e);
             return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)  // 500
-                .body(Map.of(
-                    "error_code", "INTERNAL_ERROR",
-                    "message", "Erro interno ao processar autorização",
-                    "correlation_id", correlationId
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ProblemDetail.of(
+                    "https://api.pod99.com/errors/internal-error",
+                    "Internal Server Error",
+                    500,
+                    "Erro interno ao processar autorização",
+                    instance,
+                    correlationId
                 ));
                 
         } finally {

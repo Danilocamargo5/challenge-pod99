@@ -107,7 +107,8 @@ public class AuthorizeTransactionUseCase {
         var existente = authRepository.findByIdempotencyKey(idempotencyKey);
         if (existente.isPresent()) {
             log.info("✅ Autorização já processada (idempotência): {}", idempotencyKey);
-            return AuthorizeTransactionResponse.from(existente.get());
+            // 🔄 Retorna 200 OK em vez de 201 Created
+            return AuthorizeTransactionResponse.fromRepetition(existente.get());
         }
         
         // 2. Carregar limite
