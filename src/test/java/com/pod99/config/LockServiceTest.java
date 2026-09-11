@@ -123,6 +123,6 @@ class LockServiceTest {
             () -> lockService.acquireTransactionLocks(idAutorizacao, idContrato));
         
         // Assert: Lock adquirido deve ser liberado
-        verify(dynamoDbClient, atLeast(1)).deleteItem(any());
+        verify(dynamoDbClient, atLeast(1)).deleteItem(any(DeleteItemRequest.class));
     }
 }
