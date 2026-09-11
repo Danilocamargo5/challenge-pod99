@@ -39,6 +39,12 @@ public class AuthorizationController {
     
     private final AuthorizeTransactionUseCase authorizeUseCase;
     
+    @PostMapping("/test")
+    public ResponseEntity<?> test(@RequestHeader("Idempotency-Key") String key) {
+        log.info("✅ Test endpoint funcionando! key={}", key);
+        return ResponseEntity.ok(Map.of("status", "OK", "message", "Test endpoint funcionando"));
+    }
+    
     @PostMapping("/{idContrato}/autorizacoes")
     public ResponseEntity<?> authorize(
             @PathVariable String idContrato,
