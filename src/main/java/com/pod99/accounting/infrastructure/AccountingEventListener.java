@@ -20,7 +20,7 @@ public class AccountingEventListener {
     private final RecordTransactionUseCase recordUseCase;
     private final ObjectMapper objectMapper;
     
-    // @SqsListener("pod99-accounting-queue") - Desabilitado para local testing
+    @SqsListener("pod99-accounting-queue")
     public void handleTransacaoAutorizada(String message) {
         try {
             // log.info("📨 Recebido evento SQS");

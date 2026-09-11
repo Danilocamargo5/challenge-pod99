@@ -24,11 +24,3 @@ app:
     enabled: true
     tps: 100
     table-name: pod99-rate-limit
-
-# Desabilitar listeners SQS em local (connect direto ao container via curl depois)
-io:
-  awspring:
-    cloud:
-      sqs:
-        listener:
-          enabled: false
