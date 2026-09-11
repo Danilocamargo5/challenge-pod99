@@ -60,7 +60,10 @@ public class RateLimitService {
                     .key(Map.of("account_id", AttributeValue.builder().s(accountId).build()))
                     .updateExpression("SET request_count = if_not_exists(request_count, :zero) + :one, " +
                                      "window_start = if_not_exists(window_start, :now), " +
-                                     "ttl = :ttl")
+                                     "#ttl = :ttl")
+                    .expressionAttributeNames(Map.of(
+                        "#ttl", "ttl"  // Escape para palavra-chave reservada
+                    ))
                     .expressionAttributeValues(Map.of(
                         ":zero", AttributeValue.builder().n("0").build(),
                         ":one", AttributeValue.builder().n("1").build(),
