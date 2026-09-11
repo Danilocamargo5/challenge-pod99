@@ -383,27 +383,6 @@ Por que X ao invés de Y?
 
 ---
 
-## Próximos Passos
-
-### Defesa Técnica (Demonstração)
-
-1. **Subir**: `docker-compose up` (20s)
-2. **Autorizar**: `curl POST .../autorizacoes` (10s)
-3. **Idempotência**: Repetir mesma requisição (5s)
-4. **Evento**: Ver logs `docker-compose logs accounting` (5s)
-5. **Perguntas**: Trade-offs, alternativas, escalabilidade (20-30s)
-
-### Produção (Não neste desafio)
-
-- [ ] Terraform: deploy em AWS
-- [ ] CI/CD: GitHub Actions
-- [ ] Monitoring: CloudWatch, X-Ray
-- [ ] Alertas: SNS (latência, erros)
-- [ ] Canary: gradual rollout
-- [ ] DR: multi-region
-
----
-
 ## Referências
 
 - [AWS Well-Architected Framework](https://aws.amazon.com/architecture/well-architected/)
