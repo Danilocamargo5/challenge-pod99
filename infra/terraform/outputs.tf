@@ -16,6 +16,7 @@ output "dynamodb_tables" {
     authorizations   = aws_dynamodb_table.authorizations.name
     accounting       = aws_dynamodb_table.accounting.name
     locks            = aws_dynamodb_table.locks.name
+    rate_limit       = aws_dynamodb_table.rate_limit.name
   }
 }
 
@@ -47,6 +48,16 @@ output "eventbridge_event_bus" {
 output "eventbridge_rule_arn" {
   description = "ARN da regra EventBridge"
   value       = aws_cloudwatch_event_rule.transacao_autorizada.arn
+}
+
+output "sns_topic_arn" {
+  description = "ARN do SNS Topic para fan-out de eventos"
+  value       = aws_sns_topic.transacao_autorizada.arn
+}
+
+output "sns_topic_name" {
+  description = "Nome do SNS Topic"
+  value       = aws_sns_topic.transacao_autorizada.name
 }
 
 output "lambda_authorizer_arn" {

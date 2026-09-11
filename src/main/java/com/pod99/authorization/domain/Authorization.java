@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Data
 @Builder
@@ -18,6 +19,8 @@ public class Authorization {
     private BigDecimal valor;
     private String moeda;
     private String tipoOperacao;
+    private String idEstabelecimento;  // Novo campo (ID do estabelecimento)
+    private Map<String, Object> metadata;  // Novo campo (dados adicionais)
     private BigDecimal saldoReservado;
     private AuthorizationStatus status;
     private String correlationId;
@@ -29,6 +32,8 @@ public class Authorization {
             BigDecimal valor,
             String moeda,
             String tipoOperacao,
+            String idEstabelecimento,
+            Map<String, Object> metadata,
             BigDecimal saldoReservado,
             String correlationId) {
         
@@ -39,6 +44,8 @@ public class Authorization {
             .valor(valor)
             .moeda(moeda)
             .tipoOperacao(tipoOperacao)
+            .idEstabelecimento(idEstabelecimento)
+            .metadata(metadata)
             .saldoReservado(saldoReservado)
             .status(AuthorizationStatus.APPROVED)
             .correlationId(correlationId)

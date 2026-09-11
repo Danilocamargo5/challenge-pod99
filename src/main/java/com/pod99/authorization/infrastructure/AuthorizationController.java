@@ -5,6 +5,7 @@ import com.pod99.authorization.application.AuthorizeTransactionResponse;
 import com.pod99.authorization.application.AuthorizeTransactionUseCase;
 import com.pod99.common.exception.InsufficientLimitException;
 import com.pod99.common.exception.LockAcquisitionException;
+import com.pod99.common.exception.RateLimitExceededException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -69,6 +70,22 @@ public class AuthorizationController {
                 .status(HttpStatus.CREATED)  // 201
                 .body(response);
                 
+        } catch (RateLimitExceededException e) {
+            // 🚦 Rate limit excedido
+            log.warn("🚦 Rate limit excedido para conta {}: {}", e.getAccountId(), e.getMessage());
+            return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)  // 429
+                .header("Retry-After", String.valueOf(e.getRetryAfterSeconds()))
+                .body(Map.of(
+                    "error_code", "RATE_LIMIT_EXCEEDED",
+                    "message", String.format(
+                        "Rate limit excedido: máximo %d requisições por segundo",
+                        e.getLimitPerSecond()
+                    ),
+                    "retry_after_seconds", e.getRetryAfterSeconds(),
+                    "correlation_id", correlationId
+                ));
+        
         } catch (LockAcquisitionException e) {
             // 🔒 Conflito de concorrência (não conseguiu adquirir lock)
             log.warn("⚠️ Conflito: {}", e.getMessage());

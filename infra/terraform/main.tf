@@ -31,6 +31,54 @@ provider "aws" {
 }
 
 # ============================================================================
+# Data Sources
+# ============================================================================
+
+data "aws_caller_identity" "current" {}
+
+# ============================================================================
+# IAM Roles & Policies
+# ============================================================================
+
+# Role for EventBridge to publish to SNS
+resource "aws_iam_role" "eventbridge_role" {
+  name               = "${var.app_name}-eventbridge-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "events.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "POD99 EventBridge Role"
+  }
+}
+
+resource "aws_iam_role_policy" "eventbridge_sns_policy" {
+  name   = "${var.app_name}-eventbridge-sns-policy"
+  role   = aws_iam_role.eventbridge_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "sns:Publish"
+        ]
+        Resource = aws_sns_topic.transacao_autorizada.arn
+      }
+    ]
+  })
+}
+
+# ============================================================================
 # DynamoDB Tables
 # ============================================================================
 
@@ -158,6 +206,66 @@ resource "aws_dynamodb_table" "locks" {
   }
 }
 
+# Tabela: Rate Limit (Sliding Window)
+resource "aws_dynamodb_table" "rate_limit" {
+  name           = "${var.app_name}-rate-limit"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "account_id"
+  
+  attribute {
+    name = "account_id"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  tags = {
+    Name        = "POD99 Rate Limit Table"
+    Description = "Sliding window rate limiter por conta (id_conta)"
+  }
+}
+
+# ============================================================================
+# SNS Topic (Fan-out Hub)
+# ============================================================================
+
+# SNS Topic para broadcast de eventos de autorização
+resource "aws_sns_topic" "transacao_autorizada" {
+  name              = "${var.app_name}-transacao-autorizada"
+  kms_master_key_id = "alias/aws/sns"  # Encryption at rest
+
+  tags = {
+    Name        = "POD99 Transação Autorizada Topic"
+    Description = "Fan-out hub para eventos de autorização"
+  }
+}
+
+resource "aws_sns_topic_policy" "transacao_autorizada_policy" {
+  arn = aws_sns_topic.transacao_autorizada.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "events.amazonaws.com"
+        }
+        Action   = "SNS:Publish"
+        Resource = aws_sns_topic.transacao_autorizada.arn
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = "arn:aws:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:rule/${var.app_name}-event-bus/${var.app_name}-transacao-autorizada-rule"
+          }
+        }
+      }
+    ]
+  })
+}
+
 # ============================================================================
 # SQS Queues
 # ============================================================================
@@ -242,13 +350,14 @@ resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
   }
 }
 
-# Target: Accounting Queue
-resource "aws_cloudwatch_event_target" "accounting_target" {
+# Target: SNS Topic (fan-out)
+resource "aws_cloudwatch_event_target" "sns_target" {
   rule           = aws_cloudwatch_event_rule.transacao_autorizada.name
   event_bus_name = aws_cloudwatch_event_bus.pod99.name
-  target_id      = "AccountingQueue"
-  arn            = aws_sqs_queue.accounting.arn
-
+  target_id      = "SNSTopic"
+  arn            = aws_sns_topic.transacao_autorizada.arn
+  role_arn       = aws_iam_role.eventbridge_role.arn
+  
   input_transformer {
     input_paths = {
       event_id = "$.detail.event_id"
@@ -260,21 +369,118 @@ resource "aws_cloudwatch_event_target" "accounting_target" {
   }
 }
 
-# Target: Fraud Queue
-resource "aws_cloudwatch_event_target" "fraud_target" {
-  rule           = aws_cloudwatch_event_rule.transacao_autorizada.name
-  event_bus_name = aws_cloudwatch_event_bus.pod99.name
-  target_id      = "FraudQueue"
-  arn            = aws_sqs_queue.fraud.arn
+# ============================================================================
+# SNS Subscriptions (SQS consumers)
+# ============================================================================
+
+# Subscription: SNS → Accounting Queue
+resource "aws_sns_topic_subscription" "accounting_subscription" {
+  topic_arn            = aws_sns_topic.transacao_autorizada.arn
+  protocol             = "sqs"
+  endpoint             = aws_sqs_queue.accounting.arn
+  raw_message_delivery = false
+
+  depends_on = [aws_sqs_queue_policy.allow_sns_accounting]
 }
 
-# Target: Notifications Queue
-resource "aws_cloudwatch_event_target" "notifications_target" {
-  rule           = aws_cloudwatch_event_rule.transacao_autorizada.name
-  event_bus_name = aws_cloudwatch_event_bus.pod99.name
-  target_id      = "NotificationsQueue"
-  arn            = aws_sqs_queue.notifications.arn
+# Subscription: SNS → Fraud Queue
+resource "aws_sns_topic_subscription" "fraud_subscription" {
+  topic_arn            = aws_sns_topic.transacao_autorizada.arn
+  protocol             = "sqs"
+  endpoint             = aws_sqs_queue.fraud.arn
+  raw_message_delivery = false
+
+  depends_on = [aws_sqs_queue_policy.allow_sns_fraud]
 }
+
+# Subscription: SNS → Notifications Queue
+resource "aws_sns_topic_subscription" "notifications_subscription" {
+  topic_arn            = aws_sns_topic.transacao_autorizada.arn
+  protocol             = "sqs"
+  endpoint             = aws_sqs_queue.notifications.arn
+  raw_message_delivery = false
+
+  depends_on = [aws_sqs_queue_policy.allow_sns_notifications]
+}
+
+# ============================================================================
+# SQS Queue Policies (Allow SNS to send messages)
+# ============================================================================
+
+resource "aws_sqs_queue_policy" "allow_sns_accounting" {
+  queue_url = aws_sqs_queue.accounting.url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "sns.amazonaws.com"
+        }
+        Action   = "sqs:SendMessage"
+        Resource = aws_sqs_queue.accounting.arn
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = aws_sns_topic.transacao_autorizada.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_sqs_queue_policy" "allow_sns_fraud" {
+  queue_url = aws_sqs_queue.fraud.url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "sns.amazonaws.com"
+        }
+        Action   = "sqs:SendMessage"
+        Resource = aws_sqs_queue.fraud.arn
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = aws_sns_topic.transacao_autorizada.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_sqs_queue_policy" "allow_sns_notifications" {
+  queue_url = aws_sqs_queue.notifications.url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "sns.amazonaws.com"
+        }
+        Action   = "sqs:SendMessage"
+        Resource = aws_sqs_queue.notifications.arn
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = aws_sns_topic.transacao_autorizada.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+# ============================================================================
+# DEPRECATED: Direct EventBridge → SQS targets (replaced by SNS fan-out)
+# ============================================================================
+# Note: Keeping SQS queues as-is for backward compatibility
+# EventBridge now routes through SNS instead
 
 # ============================================================================
 # API Gateway (REST API)

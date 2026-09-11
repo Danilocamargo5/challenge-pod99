@@ -29,6 +29,12 @@ aws:
   sqs:
     endpoint: ${SQS_ENDPOINT:}
 
+app:
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    tps: ${RATE_LIMIT_TPS:100}  # Transações por segundo por conta
+    table-name: ${RATE_LIMIT_TABLE_NAME:pod99-rate-limit}
+
 management:
   endpoints:
     web:

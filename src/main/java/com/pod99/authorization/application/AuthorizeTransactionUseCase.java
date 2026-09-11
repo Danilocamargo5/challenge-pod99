@@ -132,6 +132,8 @@ public class AuthorizeTransactionUseCase {
             request.getValor(),
             request.getMoeda(),
             request.getTipoOperacao(),
+            request.getIdEstabelecimento(),  // Novo campo
+            request.getMetadata(),           // Novo campo
             limit.getDisponivel(),
             correlationId
         );
