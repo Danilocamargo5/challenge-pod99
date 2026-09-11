@@ -27,8 +27,7 @@ public class AccountingEventListener {
             
             TransacaoAutorizadaEvent event = objectMapper.readValue(message, TransacaoAutorizadaEvent.class);
             
-            // log.info("💰 Processando transação: id={}, valor={}", 
-                event.getIdAutorizacao(), event.getValor());
+            // log.info("💰 Processando transação: id={}, valor={}", event.getIdAutorizacao(), event.getValor());
             
             AccountingEntry entry = AccountingEntry.builder()
                 .eventId(event.getEventId())
