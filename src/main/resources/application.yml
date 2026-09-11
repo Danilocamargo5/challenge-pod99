@@ -3,13 +3,6 @@ spring:
     name: pod99-authorization-platform
   profiles:
     active: local
-  cloud:
-    aws:
-      region:
-        static: ${AWS_REGION:us-east-1}
-      credentials:
-        access-key-id: ${AWS_ACCESS_KEY_ID:test}
-        secret-access-key: ${AWS_SECRET_ACCESS_KEY:test}
   
 server:
   port: ${SERVER_PORT:8080}
@@ -26,21 +19,6 @@ logging:
     name: logs/pod99.log
     max-size: 10MB
     max-history: 7
-
-aws:
-  region: ${AWS_REGION:us-east-1}
-  dynamodb:
-    endpoint: ${DYNAMODB_ENDPOINT:}
-  eventbridge:
-    endpoint: ${EVENTBRIDGE_ENDPOINT:}
-  sqs:
-    endpoint: ${SQS_ENDPOINT:}
-
-app:
-  rate-limit:
-    enabled: ${RATE_LIMIT_ENABLED:true}
-    tps: ${RATE_LIMIT_TPS:100}  # Transações por segundo por conta
-    table-name: ${RATE_LIMIT_TABLE_NAME:pod99-rate-limit}
 
 management:
   endpoints:

@@ -1,0 +1,34 @@
+spring:
+  cloud:
+    aws:
+      credentials:
+        access-key-id: test
+        secret-access-key: test
+      region:
+        static: us-east-1
+      sqs:
+        endpoint: http://localhost:4566
+        region: us-east-1
+
+aws:
+  region: us-east-1
+  dynamodb:
+    endpoint: http://localhost:8000
+  eventbridge:
+    endpoint: http://localhost:4566
+  sqs:
+    endpoint: http://localhost:4566
+
+app:
+  rate-limit:
+    enabled: true
+    tps: 100
+    table-name: pod99-rate-limit
+
+# Desabilitar listeners SQS em local (connect direto ao container via curl depois)
+io:
+  awspring:
+    cloud:
+      sqs:
+        listener:
+          enabled: false
