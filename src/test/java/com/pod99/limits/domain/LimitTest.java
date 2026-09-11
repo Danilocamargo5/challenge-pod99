@@ -54,8 +54,8 @@ class LimitTest {
         limit.reserve(new BigDecimal("100000.00"));
         
         // Assert
-        assertEquals(BigDecimal.ZERO, limit.getDisponivel());
-        assertEquals(new BigDecimal("100000.00"), limit.getReservado());
+        assertEquals(0, limit.getDisponivel().compareTo(BigDecimal.ZERO));
+        assertEquals(0, limit.getReservado().compareTo(new BigDecimal("100000.00")));
     }
     
     @Test
@@ -82,8 +82,8 @@ class LimitTest {
         limit.release(new BigDecimal("10000.00"));
         
         // Assert
-        assertEquals(new BigDecimal("100000.00"), limit.getDisponivel());
-        assertEquals(BigDecimal.ZERO, limit.getReservado());
+        assertEquals(0, limit.getDisponivel().compareTo(new BigDecimal("100000.00")));
+        assertEquals(0, limit.getReservado().compareTo(BigDecimal.ZERO));
     }
     
     @Test

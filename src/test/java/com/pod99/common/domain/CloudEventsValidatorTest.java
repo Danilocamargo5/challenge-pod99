@@ -31,7 +31,7 @@ class CloudEventsValidatorTest {
               "event_type": "TransacaoAutorizada",
               "event_version": "1.0",
               "occurred_at": "2026-09-11T18:30:00Z",
-              "correlation_id": "trace-550e8400-e29b-41d4-a716-446655440001",
+              "correlation_id": "550e8400-e29b-41d4-a716-446655440000",
               "id_autorizacao": "AUTH-123",
               "id_contrato": "CONTA-001",
               "valor": 100.00,
@@ -52,7 +52,7 @@ class CloudEventsValidatorTest {
               "event_type": "TransacaoAutorizada",
               "event_version": "1.0",
               "occurred_at": "2026-09-11T18:30:00Z",
-              "correlation_id": "trace-123"
+              "correlation_id": "550e8400-e29b-41d4-a716-446655440000"
             }
             """;
         
@@ -70,7 +70,7 @@ class CloudEventsValidatorTest {
               "event_type": "TransacaoAutorizada",
               "event_version": "1.0",
               "occurred_at": "2026-09-11T18:30:00Z",
-              "correlation_id": "trace-123"
+              "correlation_id": "550e8400-e29b-41d4-a716-446655440000"
             }
             """;
         
@@ -88,7 +88,7 @@ class CloudEventsValidatorTest {
               "event_type": "TransacaoAutorizada",
               "event_version": "1.0",
               "occurred_at": "2026-09-11 18:30:00",
-              "correlation_id": "trace-123"
+              "correlation_id": "550e8400-e29b-41d4-a716-446655440000"
             }
             """;
         
@@ -106,7 +106,7 @@ class CloudEventsValidatorTest {
               "event_type": "TransacaoAutorizada",
               "event_version": "1.0",
               "occurred_at": "2026-09-11T18:30:00Z",
-              "correlation_id": "trace-123",
+              "correlation_id": "550e8400-e29b-41d4-a716-446655440000",
               "valor": -100.00
             }
             """;
@@ -125,7 +125,7 @@ class CloudEventsValidatorTest {
               "event_type": "TransacaoAutorizada",
               "event_version": "1.0",
               "occurred_at": "2026-09-11T18:30:00Z",
-              "correlation_id": "trace-123",
+              "correlation_id": "550e8400-e29b-41d4-a716-446655440000",
               "saldo_reservado": -1000.00
             }
             """;
@@ -144,7 +144,7 @@ class CloudEventsValidatorTest {
               "event_type": "TransacaoAutorizada",
               "event_version": "invalid-version",
               "occurred_at": "2026-09-11T18:30:00Z",
-              "correlation_id": "trace-123"
+              "correlation_id": "550e8400-e29b-41d4-a716-446655440000"
             }
             """;
         
@@ -162,7 +162,7 @@ class CloudEventsValidatorTest {
               "event_type": "TransacaoAutorizada",
               "event_version": "1.0",
               "occurred_at": "2026-09-11T18:30:00Z",
-              "correlation_id": "trace-123",
+              "correlation_id": "550e8400-e29b-41d4-a716-446655440000",
               "saldo_reservado": 0.00
             }
             """;
@@ -179,7 +179,7 @@ class CloudEventsValidatorTest {
               "event_type": "TransacaoAutorizada",
               "event_version": "1.0",
               "occurred_at": "2026-09-11T18:30:00Z",
-              "correlation_id": "trace-123"
+              "correlation_id": "550e8400-e29b-41d4-a716-446655440000"
             }
             """;
         

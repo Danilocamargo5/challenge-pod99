@@ -196,6 +196,7 @@ class AuthorizeTransactionUseCaseTest {
             .valor(new BigDecimal("100.00"))
             .saldoReservado(new BigDecimal("99900.00"))
             .correlationId("previous-trace")
+            .status(AuthorizationStatus.APPROVED)
             .build();
         
         List<String> acquiredLocks = List.of(idConta, idContrato);
