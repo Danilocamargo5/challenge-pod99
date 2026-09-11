@@ -64,6 +64,26 @@
             <version>${aws-java-sdk.version}</version>
         </dependency>
 
+        <!-- Spring Cloud AWS SQS (para @SqsListener) -->
+        <dependency>
+            <groupId>io.awspring.cloud</groupId>
+            <artifactId>spring-cloud-aws-starter-sqs</artifactId>
+            <version>3.0.3</version>
+        </dependency>
+
+        <!-- AWS Lambda Powertools -->
+        <dependency>
+            <groupId>software.amazon.lambda</groupId>
+            <artifactId>powertools-logging</artifactId>
+            <version>1.18.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>software.amazon.lambda</groupId>
+            <artifactId>powertools-utilities</artifactId>
+            <version>1.18.0</version>
+        </dependency>
+
         <!-- JSON Processing -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
