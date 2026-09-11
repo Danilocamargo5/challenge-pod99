@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: pod99-authorization-platform
+  profiles:
+    active: local
+  
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /
+
+logging:
+  level:
+    root: INFO
+    com.pod99: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+  file:
+    name: logs/pod99.log
+    max-size: 10MB
+    max-history: 7
+
+aws:
+  region: ${AWS_REGION:us-east-1}
+  dynamodb:
+    endpoint: ${DYNAMODB_ENDPOINT:}
+  eventbridge:
+    endpoint: ${EVENTBRIDGE_ENDPOINT:}
+  sqs:
+    endpoint: ${SQS_ENDPOINT:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
