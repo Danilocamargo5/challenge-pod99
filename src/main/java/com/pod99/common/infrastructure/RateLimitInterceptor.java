@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.util.ContentCachingRequestWrapper;
 
 /**
  * Interceptor que aplica Rate Limiting por conta (id_conta)
@@ -70,11 +71,11 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private String extractAccountId(String requestBody, HttpServletRequest request) {
         try {
             // Tentar extrair do JSON body
-            if (requestBody.contains("\"id_conta\"")) {
-                int startIndex = requestBody.indexOf("\"id_conta\":");
-                int endIndex = requestBody.indexOf("\"", startIndex + 12);
+            if (requestBody != null && requestBody.contains("\"idConta\"")) {
+                int startIndex = requestBody.indexOf("\"idConta\":");
+                int endIndex = requestBody.indexOf("\"", startIndex + 11);
                 if (endIndex > startIndex) {
-                    return requestBody.substring(startIndex + 12, endIndex)
+                    return requestBody.substring(startIndex + 11, endIndex)
                         .replace("\"", "").trim();
                 }
             }
@@ -98,11 +99,25 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     
     /**
      * Helper para ler body da requisição (sem consumir o stream)
+     * Usa ContentCachingRequestWrapper pra permitir múltiplas leituras
      */
     private String getRequestBody(HttpServletRequest request) {
         try {
-            return new String(request.getInputStream().readAllBytes());
+            // Se já é ContentCachingRequestWrapper, usa direto
+            if (request instanceof ContentCachingRequestWrapper) {
+                ContentCachingRequestWrapper wrapper = (ContentCachingRequestWrapper) request;
+                byte[] buf = wrapper.getContentAsByteArray();
+                if (buf.length == 0) {
+                    // Ler do InputStream original
+                    return new String(request.getInputStream().readAllBytes());
+                }
+                return new String(buf);
+            } else {
+                // Primeira leitura - consome o stream
+                return new String(request.getInputStream().readAllBytes());
+            }
         } catch (Exception e) {
+            log.debug("Erro ao ler body: {}", e.getMessage());
             return "";
         }
     }

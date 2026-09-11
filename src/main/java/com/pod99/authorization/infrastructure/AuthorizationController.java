@@ -39,32 +39,12 @@ public class AuthorizationController {
     
     private final AuthorizeTransactionUseCase authorizeUseCase;
     
-    @PostMapping("/test")
-    public ResponseEntity<?> test(@RequestHeader("Idempotency-Key") String key) {
-        log.info("✅ Test endpoint funcionando! key={}", key);
-        return ResponseEntity.ok(Map.of("status", "OK", "message", "Test endpoint funcionando"));
-    }
-    
-    @PostMapping("/test2")
-    public ResponseEntity<?> test2(@RequestBody AuthorizeTransactionRequest request) {
-        log.info("✅ Test2 recebeu request: {}", request);
-        return ResponseEntity.ok(request);
-    }
-    
-    @PostMapping("/test3")
-    public ResponseEntity<?> test3(@RequestBody Map<String, Object> request) {
-        log.info("✅ Test3 recebeu Map: {}", request);
-        return ResponseEntity.ok(request);
-    }
     
     @PostMapping("/{idContrato}/autorizacoes")
     public ResponseEntity<?> authorize(
             @PathVariable String idContrato,
             @RequestBody AuthorizeTransactionRequest request,
             @RequestHeader("Idempotency-Key") String idempotencyKey) {
-        
-        log.info("🔍 DEBUG: Recebido request - idContrato={}, request={}, key={}", 
-            idContrato, request, idempotencyKey);
         
         String correlationId = UUID.randomUUID().toString();
         String traceId = UUID.randomUUID().toString();
