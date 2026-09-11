@@ -297,8 +297,7 @@ class AuthorizeTransactionUseCaseTest {
             .idContrato(idContrato)
             .valor(new BigDecimal("100.00"))
             .build();
-        when(authRepository.save(any()))
-            .thenReturn(savedAuth);
+        doNothing().when(authRepository).save(any());
         
         // Mock: Evento falha (doThrow para métodos void)
         doThrow(new RuntimeException("EventBridge timeout"))
