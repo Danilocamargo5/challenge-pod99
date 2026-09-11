@@ -103,19 +103,15 @@ public class RateLimitInterceptor implements HandlerInterceptor {
      */
     private String getRequestBody(HttpServletRequest request) {
         try {
-            // Se já é ContentCachingRequestWrapper, usa direto
-            if (request instanceof ContentCachingRequestWrapper) {
-                ContentCachingRequestWrapper wrapper = (ContentCachingRequestWrapper) request;
+            // Se é ContentCachingRequestWrapper, usa cache direto
+            if (request instanceof org.springframework.web.util.ContentCachingRequestWrapper) {
+                org.springframework.web.util.ContentCachingRequestWrapper wrapper = 
+                    (org.springframework.web.util.ContentCachingRequestWrapper) request;
                 byte[] buf = wrapper.getContentAsByteArray();
-                if (buf.length == 0) {
-                    // Ler do InputStream original
-                    return new String(request.getInputStream().readAllBytes());
-                }
                 return new String(buf);
-            } else {
-                // Primeira leitura - consome o stream
-                return new String(request.getInputStream().readAllBytes());
             }
+            // Fallback para InputStream (não deve acontecer com o filter ativo)
+            return new String(request.getInputStream().readAllBytes());
         } catch (Exception e) {
             log.debug("Erro ao ler body: {}", e.getMessage());
             return "";
