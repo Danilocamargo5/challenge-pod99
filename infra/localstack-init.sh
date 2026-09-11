@@ -44,6 +44,13 @@ awslocal dynamodb create-table \
   --billing-mode PAY_PER_REQUEST \
   --region us-east-1 2>/dev/null || echo "Tabela pod99-locks já existe"
 
+awslocal dynamodb create-table \
+  --table-name pod99-rate-limit \
+  --attribute-definitions AttributeName=account_id,AttributeType=S \
+  --key-schema AttributeName=account_id,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1 2>/dev/null || echo "Tabela pod99-rate-limit já existe"
+
 # Insere um contrato de teste com limite
 echo "💰 Inserindo dados de teste..."
 
