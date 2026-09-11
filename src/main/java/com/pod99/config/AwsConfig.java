@@ -29,42 +29,45 @@ public class AwsConfig {
     private String region;
     
     @Bean
-    public DynamoDbClient dynamoDbClient() {
+    public software.amazon.awssdk.auth.credentials.AwsCredentialsProvider awsCredentialsProvider() {
+        return StaticCredentialsProvider.create(
+            AwsBasicCredentials.create("test", "test"));
+    }
+    
+    @Bean
+    public DynamoDbClient dynamoDbClient(software.amazon.awssdk.auth.credentials.AwsCredentialsProvider credentialsProvider) {
         DynamoDbClientBuilder builder = DynamoDbClient.builder()
-            .region(Region.of(region));
+            .region(Region.of(region))
+            .credentialsProvider(credentialsProvider);
         
         if (!dynamoDbEndpoint.isEmpty()) {
-            builder.endpointOverride(URI.create(dynamoDbEndpoint))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                    AwsBasicCredentials.create("test", "test")));
+            builder.endpointOverride(URI.create(dynamoDbEndpoint));
         }
         
         return builder.build();
     }
     
     @Bean
-    public EventBridgeClient eventBridgeClient() {
+    public EventBridgeClient eventBridgeClient(software.amazon.awssdk.auth.credentials.AwsCredentialsProvider credentialsProvider) {
         var builder = EventBridgeClient.builder()
-            .region(Region.of(region));
+            .region(Region.of(region))
+            .credentialsProvider(credentialsProvider);
         
         if (!eventBridgeEndpoint.isEmpty()) {
-            builder.endpointOverride(URI.create(eventBridgeEndpoint))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                    AwsBasicCredentials.create("test", "test")));
+            builder.endpointOverride(URI.create(eventBridgeEndpoint));
         }
         
         return builder.build();
     }
     
     @Bean
-    public SqsClient sqsClient() {
+    public SqsClient sqsClient(software.amazon.awssdk.auth.credentials.AwsCredentialsProvider credentialsProvider) {
         var builder = SqsClient.builder()
-            .region(Region.of(region));
+            .region(Region.of(region))
+            .credentialsProvider(credentialsProvider);
         
         if (!sqsEndpoint.isEmpty()) {
-            builder.endpointOverride(URI.create(sqsEndpoint))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                    AwsBasicCredentials.create("test", "test")));
+            builder.endpointOverride(URI.create(sqsEndpoint));
         }
         
         return builder.build();
