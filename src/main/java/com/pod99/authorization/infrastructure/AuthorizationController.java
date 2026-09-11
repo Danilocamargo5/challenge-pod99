@@ -46,6 +46,9 @@ public class AuthorizationController {
             @RequestBody AuthorizeTransactionRequest request,
             @RequestHeader("Idempotency-Key") String idempotencyKey) {
         
+        log.info("✅ [Authorize] Recebido: idContrato={}, idConta={}, key={}", 
+            idContrato, request.getIdConta(), idempotencyKey);
+        
         String correlationId = UUID.randomUUID().toString();
         String traceId = UUID.randomUUID().toString();
         

@@ -24,6 +24,9 @@ public class ContentCachingFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, 
                                    FilterChain filterChain) throws ServletException, IOException {
         
+        log.info("🔍 [ContentCachingFilter] Wrappando request: {} {}", 
+            request.getMethod(), request.getRequestURI());
+        
         // Wrappa com ContentCachingRequestWrapper pra permitir múltiplas leituras
         ContentCachingRequestWrapper wrappedRequest = new ContentCachingRequestWrapper(request);
         
