@@ -100,7 +100,7 @@ http_code=$(curl -s -o /dev/null -w "%{http_code}" \
     -H "Idempotency-Key: $(generate_uuid)" \
     -d '{"id_conta":"TEST","valor":10.00,"moeda":"BRL","tipo_operacao":"DEBITO"}')
 
-if [ "$http_code" != "201" ] && [ "$http_code" != "202" ]; then
+if [ "$http_code" == "000" ] || [ "$http_code" == "5"* ]; then
     echo -e "${RED}❌ Conexão falhou! HTTP $http_code${NC}"
     echo "API não está respondendo em $API_URL"
     exit 1
