@@ -1,8 +1,5 @@
 package com.pod99.config;
 
-import com.amazonaws.lambda.powertools.logging.Logger;
-import com.amazonaws.lambda.powertools.logging.LoggingUtils;
-import com.amazonaws.lambda.powertools.utilities.jmespath.Base64;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 

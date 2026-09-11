@@ -4,9 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pod99.accounting.application.RecordTransactionUseCase;
 import com.pod99.accounting.domain.AccountingEntry;
 import com.pod99.authorization.domain.TransacaoAutorizadaEvent;
+import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.sqs.annotation.SqsListener;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
