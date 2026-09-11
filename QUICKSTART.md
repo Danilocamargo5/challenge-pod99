@@ -20,13 +20,15 @@ Aguarda até ver:
 ## 2️⃣ Rodar a Aplicação (em outro Terminal)
 
 ```bash
-mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.arguments="--spring.profiles.active=local"
 ```
 
 Aguarda até ver:
 ```
 Started Pod99Application in X seconds
 ```
+
+> **Importante:** O profile `local` ativa `application-local.yml` com credenciais `test/test` e endpoints do LocalStack
 
 ## 3️⃣ Testar a API
 
