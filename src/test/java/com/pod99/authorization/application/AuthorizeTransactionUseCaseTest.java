@@ -2,6 +2,7 @@ package com.pod99.authorization.application;
 
 import com.pod99.authorization.domain.Authorization;
 import com.pod99.authorization.domain.AuthorizationRepository;
+import com.pod99.authorization.domain.AuthorizationStatus;
 import com.pod99.authorization.domain.TransacaoAutorizadaEvent;
 import com.pod99.common.exception.InsufficientLimitException;
 import com.pod99.common.exception.LockAcquisitionException;
