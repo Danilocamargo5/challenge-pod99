@@ -21,6 +21,6 @@ aws:
 
 app:
   rate-limit:
-    enabled: false
+    enabled: true
     tps: 100
     table-name: pod99-rate-limit
