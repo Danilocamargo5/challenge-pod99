@@ -52,17 +52,17 @@ make_request() {
     
     # Gerar dados aleatórios
     local id_conta="ACC-$(printf "%03d" $((RANDOM % 1000)))"
-    local valor=$(printf "%.2f" "$(echo "scale=2; 10 + $RANDOM % 90" | bc)")
+    local valor="$((10 + RANDOM % 90)).$(printf "%02d" $((RANDOM % 100)))"
     local id_estabelecimento="EST-$(printf "%03d" $((RANDOM % 500)))"
     
     # Payload
     local payload=$(cat <<EOF
 {
-  "id_conta": "${id_conta}",
+  "idConta": "${id_conta}",
   "valor": ${valor},
   "moeda": "BRL",
-  "tipo_operacao": "DEBITO",
-  "id_estabelecimento": "${id_estabelecimento}",
+  "tipoOperacao": "DEBITO",
+  "idEstabelecimento": "${id_estabelecimento}",
   "metadata": {
     "request_number": ${request_number},
     "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -98,7 +98,7 @@ http_code=$(curl -s -o /dev/null -w "%{http_code}" \
     -H "Authorization: Bearer test-token" \
     -H "x-api-key: ${API_KEY}" \
     -H "Idempotency-Key: $(generate_uuid)" \
-    -d '{"id_conta":"TEST","valor":10.00,"moeda":"BRL","tipo_operacao":"DEBITO"}')
+    -d '{"idConta":"TEST","valor":10.00,"moeda":"BRL","tipoOperacao":"DEBITO"}')
 
 if [ "$http_code" == "000" ] || [ "$http_code" == "5"* ]; then
     echo -e "${RED}❌ Conexão falhou! HTTP $http_code${NC}"
