@@ -99,10 +99,7 @@ resource "aws_api_gateway_authorizer" "lambda_authorizer" {
   name            = "pod99-lambda-authorizer"
   rest_api_id     = aws_api_gateway_rest_api.pod99_api.id
   authorizer_uri  = "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:000000000000:function:pod99-lambda-authorizer/invocations"
-  authorizer_type = "TOKEN"
   identity_source = "method.request.header.Authorization"
-  
-  # LocalStack não valida URI, então essa é apenas para referência
 }
 
 # ==================================================================================
