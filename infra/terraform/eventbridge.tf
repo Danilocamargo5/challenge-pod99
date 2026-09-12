@@ -18,16 +18,15 @@ resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
 }
 
 # ==================================================================================
-# EventBridge Target - Criado via AWS CLI (Terraform não suporta sqs_target)
+# EventBridge Target - Criado via awslocal (LocalStack CLI)
 # ==================================================================================
 
 resource "null_resource" "eventbridge_target" {
   provisioner "local-exec" {
     command = <<-EOT
-      aws events put-targets \
+      awslocal events put-targets \
         --rule ${aws_cloudwatch_event_rule.transacao_autorizada.name} \
-        --targets "Id"="1","Arn"="${aws_sqs_queue.accounting_queue.arn}","RoleArn"="${aws_iam_role.eventbridge_role.arn}","SqsParameters"='{"MessageGroupIdPath":"$.id"}' \
-        --endpoint-url http://localhost:4566 \
+        --targets "Id=1,Arn=${aws_sqs_queue.accounting_queue.arn},RoleArn=${aws_iam_role.eventbridge_role.arn},SqsParameters={MessageGroupIdPath=$.id}" \
         --region us-east-1
     EOT
   }
