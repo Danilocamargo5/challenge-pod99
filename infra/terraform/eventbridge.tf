@@ -32,10 +32,7 @@ curl -X POST http://localhost:4566/ \
     "Targets": [{
       "Id": "1",
       "Arn": "${aws_sqs_queue.accounting_queue.arn}",
-      "RoleArn": "${aws_iam_role.eventbridge_role.arn}",
-      "SqsParameters": {
-        "MessageGroupIdPath": "$.id"
-      }
+      "RoleArn": "${aws_iam_role.eventbridge_role.arn}"
     }]
   }' && echo "✅ EventBridge Target criado!"
     EOT
