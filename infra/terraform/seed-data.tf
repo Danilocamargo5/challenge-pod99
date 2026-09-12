@@ -2,35 +2,42 @@
 # Seed Data - Populate DynamoDB with test data
 # ==================================================================================
 
-resource "null_resource" "populate_test_data" {
-  provisioner "local-exec" {
-    command = "bash ${path.module}/../scripts/populate-data.sh"
-    
-    environment = {
-      AWS_ACCESS_KEY_ID     = var.aws_access_key_id
-      AWS_SECRET_ACCESS_KEY = var.aws_secret_access_key
-      AWS_REGION            = var.aws_region
-      AWS_ENDPOINT_URL      = var.use_localstack ? "http://localhost:4566" : ""
+# Popula 100 contas × 3 contratos = 300 registros
+resource "aws_dynamodb_table_item" "test_limits" {
+  count          = 300
+  table_name     = aws_dynamodb_table.limits.name
+  hash_key       = "id_contrato"
+  
+  item = jsonencode({
+    id_contrato = {
+      S = format("CONTA-%03d", count.index + 1)
     }
-  }
+    id_conta = {
+      S = format("ACC-%03d", (count.index / 3) + 1)
+    }
+    limite = {
+      N = tostring(51000 + ((count.index / 3 + 1) * 1000))
+    }
+    disponivel = {
+      N = tostring(51000 + ((count.index / 3 + 1) * 1000))
+    }
+    reservado = {
+      N = "0.00"
+    }
+    version = {
+      N = "0"
+    }
+  })
 
   depends_on = [
-    aws_dynamodb_table.limits,
-    aws_dynamodb_table.authorizations,
-    aws_dynamodb_table.accounting,
-    aws_dynamodb_table.locks,
-    aws_dynamodb_table.rate_limit
+    aws_dynamodb_table.limits
   ]
-
-  triggers = {
-    script_hash = filemd5("${path.module}/../scripts/populate-data.sh")
-  }
 }
 
 output "seed_data_status" {
   description = "Status da população de dados"
-  value       = "✅ Dados de teste populados (100 contas × 3 contratos = 300 registros)"
+  value       = "✅ 300 registros de teste criados (100 contas × 3 contratos)"
   depends_on = [
-    null_resource.populate_test_data
+    aws_dynamodb_table_item.test_limits
   ]
 }

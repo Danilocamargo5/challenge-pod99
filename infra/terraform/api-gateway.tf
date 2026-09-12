@@ -4,7 +4,7 @@
 
 # API Gateway REST API
 resource "aws_apigatewayv2_api" "pod99_api" {
-  name          = "${var.project}-api-${var.environment}"
+  name          = "pod99-authorization-api"
   protocol_type = "HTTP"
   description   = "POD99 Transaction Authorization API"
 
@@ -27,7 +27,7 @@ resource "aws_apigatewayv2_api" "pod99_api" {
   }
 
   tags = {
-    Name = "${var.project}-api"
+    Name = "pod99-api"
   }
 }
 
@@ -37,7 +37,7 @@ resource "aws_apigatewayv2_api" "pod99_api" {
 
 resource "aws_apigatewayv2_stage" "api_stage" {
   api_id      = aws_apigatewayv2_api.pod99_api.id
-  name        = var.environment
+  name        = "local"
   auto_deploy = true
 
   access_log_settings {
@@ -52,12 +52,11 @@ resource "aws_apigatewayv2_stage" "api_stage" {
       responseLength     = "$context.responseLength"
       integrationLatency = "$context.integration.latency"
       error              = "$context.error.message"
-      accountId          = "$context.authorizer.accountId"
     })
   }
 
   tags = {
-    Name = "${var.project}-${var.environment}"
+    Name = "pod99-local"
   }
 }
 
@@ -66,11 +65,11 @@ resource "aws_apigatewayv2_stage" "api_stage" {
 # ==================================================================================
 
 resource "aws_cloudwatch_log_group" "api_gateway_logs" {
-  name              = "/aws/apigateway/${var.project}-${var.environment}"
+  name              = "/aws/apigateway/pod99-local"
   retention_in_days = 7
 
   tags = {
-    Name = "${var.project}-api-logs"
+    Name = "pod99-api-logs"
   }
 }
 
@@ -83,8 +82,7 @@ resource "aws_apigatewayv2_integration" "app_integration" {
   integration_type = "HTTP_PROXY"
 
   # LOCAL: apontar pra app rodando em localhost:8080
-  # via host.docker.internal (acesso de Docker pro host)
-  integration_uri     = var.use_localstack ? "http://host.docker.internal:8080" : "http://localhost:8080"
+  integration_uri     = "http://host.docker.internal:8080"
   payload_format_version = "2.0"
   timeout_milliseconds   = 30000
 }
@@ -100,7 +98,20 @@ resource "aws_apigatewayv2_route" "health" {
   target    = "integrations/${aws_apigatewayv2_integration.app_integration.id}"
 }
 
-# ℹ️ Routes estão em lambda-authorizer.tf (com autenticação ativa)
+# POST /v1/contratos/{id_contrato}/autorizacoes (SEM autenticação no API Gateway)
+# Autenticação será feita no app via JwtAuthenticationFilter
+resource "aws_apigatewayv2_route" "authorize_post" {
+  api_id    = aws_apigatewayv2_api.pod99_api.id
+  route_key = "POST /v1/contratos/{id_contrato}/autorizacoes"
+  target    = "integrations/${aws_apigatewayv2_integration.app_integration.id}"
+}
+
+# POST /v1/contratos/authorize (Lambda Authorizer endpoint)
+resource "aws_apigatewayv2_route" "authorize_endpoint" {
+  api_id    = aws_apigatewayv2_api.pod99_api.id
+  route_key = "POST /v1/contratos/authorize"
+  target    = "integrations/${aws_apigatewayv2_integration.app_integration.id}"
+}
 
 # ==================================================================================
 # Outputs
