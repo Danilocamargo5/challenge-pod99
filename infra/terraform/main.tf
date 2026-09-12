@@ -6,9 +6,15 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+
     null = {
       source  = "hashicorp/null"
       version = "~> 3.0"
+    }
+
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.8"
     }
   }
 }
@@ -16,14 +22,19 @@ terraform {
 # ==================================================================================
 # Provider AWS Configuration
 # ==================================================================================
+
 provider "aws" {
   region     = var.aws_region
   access_key = var.aws_access_key_id
   secret_key = var.aws_secret_access_key
 
-  # 🔧 Apontar pro LocalStack quando estiver em ambiente local
+  # --------------------------------------------------------------------------
+  # LocalStack
+  # --------------------------------------------------------------------------
+
   dynamic "endpoints" {
     for_each = var.use_localstack ? [1] : []
+
     content {
       apigateway = "http://localhost:4566"
       lambda     = "http://localhost:4566"
@@ -36,10 +47,17 @@ provider "aws" {
     }
   }
 
-  # Desabilitar validação de credenciais quando usar LocalStack
+  # --------------------------------------------------------------------------
+  # Desabilita validações quando usando LocalStack
+  # --------------------------------------------------------------------------
+
   skip_credentials_validation = var.use_localstack
   skip_requesting_account_id  = var.use_localstack
   skip_region_validation      = var.use_localstack
+
+  # --------------------------------------------------------------------------
+  # Tags padrão
+  # --------------------------------------------------------------------------
 
   default_tags {
     tags = local.common_tags
@@ -51,27 +69,43 @@ provider "aws" {
 # ==================================================================================
 
 locals {
+  # --------------------------------------------------------------------------
   # Naming convention
+  # --------------------------------------------------------------------------
+
   name_prefix = "${var.project}-${var.environment}"
 
-  # Table names (sem referência circular - valores literais)
+  # --------------------------------------------------------------------------
+  # DynamoDB table names
+  # --------------------------------------------------------------------------
+
   table_limits         = "pod99-limits"
   table_authorizations = "pod99-authorizations"
   table_accounting     = "pod99-accounting"
   table_locks          = "pod99-locks"
   table_rate_limit     = "pod99-rate-limit"
 
-  # Queue names
+  # --------------------------------------------------------------------------
+  # SQS queue names
+  # --------------------------------------------------------------------------
+
   queue_accounting     = "pod99-accounting-queue"
   queue_accounting_dlq = "pod99-accounting-dlq"
 
-  # Rule names
+  # --------------------------------------------------------------------------
+  # EventBridge rule
+  # --------------------------------------------------------------------------
+
   rule_transacao_autorizada = "pod99-transacao-autorizada-rule"
 
+  # --------------------------------------------------------------------------
   # Common tags
+  # --------------------------------------------------------------------------
+
   common_tags = {
     Environment = var.environment
     Project     = var.project
     ManagedBy   = "Terraform"
   }
 }
+

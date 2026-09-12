@@ -20,7 +20,7 @@ import java.util.Map;
  *     "Version": "2012-10-17",
  *     "Statement": [
  *       {
- *         "Action": "execute:Invoke",
+ *         "Action": "execute-api:Invoke",
  *         "Effect": "Allow",
  *         "Resource": "arn:..."
  *       }
@@ -92,7 +92,7 @@ public class AuthorizerResponse {
                 .version("2012-10-17")
                 .statement(List.of(
                     Statement.builder()
-                        .action("execute:Invoke")
+                        .action("execute-api:Invoke")
                         .effect("Allow")
                         .resource(methodArn)
                         .build()
@@ -105,7 +105,7 @@ public class AuthorizerResponse {
                 .version("2012-10-17")
                 .statement(List.of(
                     Statement.builder()
-                        .action("execute:Invoke")
+                        .action("execute-api:Invoke")
                         .effect("Deny")
                         .resource(methodArn)
                         .build()

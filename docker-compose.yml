@@ -1,5 +1,7 @@
 services:
+  # ==============================================================================
   # DynamoDB Local
+  # ==============================================================================
   dynamodb-local:
     image: amazon/dynamodb-local:latest
     container_name: dynamodb-local
@@ -16,23 +18,44 @@ services:
       timeout: 3s
       retries: 3
 
-  # LocalStack (ALL SERVICES)
+  # ==============================================================================
+  # LocalStack
+  # ==============================================================================
   localstack:
     image: localstack/localstack:4.14.0
     container_name: localstack
+
     ports:
       - "4566:4566"
+
     environment:
-      - SERVICES=apigateway,events,sqs,dynamodb,logs,iam
+      # Serviços AWS usados pelo projeto
+      - SERVICES=apigateway,events,sqs,dynamodb,logs,iam,lambda
+
+      # Debug
       - DEBUG=0
+
+      # Credenciais locais
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
+
+      # Necessário para execução de Lambdas pelo LocalStack
       - DOCKER_HOST=unix:///var/run/docker.sock
+
     volumes:
+      # Permite que o LocalStack gerencie os containers das Lambdas
       - /var/run/docker.sock:/var/run/docker.sock
+
     hostname: localstack
+
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:4566/_localstack/health"
+        ]
       interval: 5s
       timeout: 3s
       retries: 3
