@@ -82,6 +82,7 @@ public class AuthorizerResponse {
     public static class PolicyDocument {
         
         @JsonProperty("Version")
+        @Builder.Default
         private String version = "2012-10-17";
         
         @JsonProperty("Statement")
