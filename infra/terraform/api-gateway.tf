@@ -222,7 +222,6 @@ resource "aws_api_gateway_integration" "autorizar_transacao_integration" {
   }
 
   # Passar a resposta do backend como está
-  passthrough_behavior = "WHEN_NO_TEMPLATES"
 
   depends_on = [
     aws_api_gateway_method.autorizar_transacao
@@ -242,7 +241,7 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
 
 
   response_templates = {
-    "application/json" = "$input.json('$')"
+    "application/json" = "$input.body"
   }
 
   depends_on = [
@@ -265,7 +264,7 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
   # Mapear HTTP 201 do backend para 201
 
   response_templates = {
-    "application/json" = "$input.json('$')"
+    "application/json" = "$input.body"
   }
 
   depends_on = [
@@ -287,7 +286,7 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
 
 
   response_templates = {
-    "application/json" = "$input.json('$')"
+    "application/json" = "$input.body"
   }
 
   depends_on = [
@@ -309,7 +308,7 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
 
 
   response_templates = {
-    "application/json" = "$input.json('$')"
+    "application/json" = "$input.body"
   }
 
   depends_on = [
@@ -331,7 +330,7 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
 
 
   response_templates = {
-    "application/json" = "$input.json('$')"
+    "application/json" = "$input.body"
   }
 
   depends_on = [
@@ -353,7 +352,7 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
 
 
   response_templates = {
-    "application/json" = "$input.json('$')"
+    "application/json" = "$input.body"
   }
 
   depends_on = [
@@ -410,7 +409,6 @@ resource "aws_api_gateway_integration" "lambda_authorizer_handler_integration" {
   uri = "http://host.docker.internal:8080/v1/contratos/authorize"
 
   # Passar a resposta do backend como está
-  passthrough_behavior = "WHEN_NO_TEMPLATES"
 
   depends_on = [
     aws_api_gateway_method.lambda_authorizer_handler
@@ -430,7 +428,7 @@ resource "aws_api_gateway_integration_response" "lambda_authorizer_handler_integ
 
 
   response_templates = {
-    "application/json" = "$input.json('$')"
+    "application/json" = "$input.body"
   }
 
   depends_on = [
