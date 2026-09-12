@@ -18,15 +18,21 @@ resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
 }
 
 # Target: enviar para SQS de accounting (FIFO)
+# LocalStack não suporta sqs_target block - usar input_transformer
 resource "aws_cloudwatch_event_target" "accounting_queue" {
   rule      = aws_cloudwatch_event_rule.transacao_autorizada.name
   target_id = "SendToAccountingQueue"
   arn       = aws_sqs_queue.accounting_queue.arn
   role_arn  = aws_iam_role.eventbridge_role.arn
 
-  # Para fila FIFO, usar message_group_id_path
-  sqs_target {
-    message_group_id_path = "$.event_id"
+  # InputTransformer para passar MessageGroupId para fila FIFO
+  input_transformer {
+    input_paths = {
+      eventId = "$.id"
+    }
+    input_template = jsonencode({
+      MessageGroupId = "transacao-autorizada"
+    })
   }
 }
 
