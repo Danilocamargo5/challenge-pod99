@@ -176,6 +176,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return path.startsWith("/health") || 
                path.startsWith("/actuator") ||
                path.startsWith("/swagger") ||
-               path.startsWith("/v3/api-docs");
+               path.startsWith("/v3/api-docs") ||
+               path.equals("/v1/contratos/authorize");  // Lambda Authorizer Handler
     }
 }
