@@ -23,8 +23,11 @@ resource "aws_cloudwatch_event_target" "accounting_queue" {
   rule      = aws_cloudwatch_event_rule.transacao_autorizada.name
   target_id = "SendToAccountingQueue"
   arn       = aws_sqs_queue.accounting_queue.arn
+  role_arn  = aws_iam_role.eventbridge_role.arn
 
-  role_arn = aws_iam_role.eventbridge_role.arn
+  sqstarget {
+    message_group_id_path = "$.event_id"
+  }
 }
 
 # ==================================================================================

@@ -1,5 +1,5 @@
 # ==================================================================================
-# API Gateway - HTTP API
+# API Gateway - HTTP API (Simplificado para LocalStack)
 # ==================================================================================
 
 # API Gateway REST API
@@ -40,36 +40,8 @@ resource "aws_apigatewayv2_stage" "api_stage" {
   name        = "local"
   auto_deploy = true
 
-  access_log_settings {
-    destination_arn = aws_cloudwatch_log_group.api_gateway_logs.arn
-    format = jsonencode({
-      requestId          = "$context.requestId"
-      ip                 = "$context.identity.sourceIp"
-      requestTime        = "$context.requestTime"
-      httpMethod         = "$context.httpMethod"
-      resourcePath       = "$context.resourcePath"
-      status             = "$context.status"
-      responseLength     = "$context.responseLength"
-      integrationLatency = "$context.integration.latency"
-      error              = "$context.error.message"
-    })
-  }
-
   tags = {
     Name = "pod99-local"
-  }
-}
-
-# ==================================================================================
-# CloudWatch Logs
-# ==================================================================================
-
-resource "aws_cloudwatch_log_group" "api_gateway_logs" {
-  name              = "/aws/apigateway/pod99-local"
-  retention_in_days = 7
-
-  tags = {
-    Name = "pod99-api-logs"
   }
 }
 
@@ -130,4 +102,17 @@ output "api_gateway_id" {
 output "api_gateway_endpoint" {
   description = "Endpoint da API Gateway (completo)"
   value       = "${aws_apigatewayv2_stage.api_stage.invoke_url}/v1/contratos/{id_contrato}/autorizacoes"
+}
+
+# ==================================================================================
+# CloudWatch Logs (para API Gateway)
+# ==================================================================================
+
+resource "aws_cloudwatch_log_group" "api_gateway_logs" {
+  name              = "/aws/apigateway/pod99-local"
+  retention_in_days = 7
+
+  tags = {
+    Name = "pod99-api-logs"
+  }
 }
