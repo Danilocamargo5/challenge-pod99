@@ -23,7 +23,13 @@ resource "aws_cloudwatch_event_target" "accounting_queue" {
   target_id = "SendToAccountingQueue"
   arn       = aws_sqs_queue.accounting_queue.arn
   role_arn  = aws_iam_role.eventbridge_role.arn
-  input_path = "$"
+
+  # SqsParameters precisa ser passado via input JSON
+  input = jsonencode({
+    "SqsParameters" = {
+      "MessageGroupIdPath" = "$.event_id"
+    }
+  })
 }
 
 # ==================================================================================
