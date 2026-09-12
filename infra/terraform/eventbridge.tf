@@ -1,5 +1,5 @@
 # ==================================================================================
-# EventBridge Rules
+# EventBridge Rules (SEM Target - LocalStack não suporta)
 # ==================================================================================
 
 resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
@@ -17,27 +17,8 @@ resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
   }
 }
 
-# Target: enviar para SQS de accounting (FIFO)
-# LocalStack não suporta sqs_target block - usar input_transformer
-resource "aws_cloudwatch_event_target" "accounting_queue" {
-  rule      = aws_cloudwatch_event_rule.transacao_autorizada.name
-  target_id = "SendToAccountingQueue"
-  arn       = aws_sqs_queue.accounting_queue.arn
-  role_arn  = aws_iam_role.eventbridge_role.arn
-
-  # InputTransformer para passar MessageGroupId para fila FIFO
-  input_transformer {
-    input_paths = {
-      eventId = "$.id"
-    }
-    input_template = jsonencode({
-      MessageGroupId = "transacao-autorizada"
-    })
-  }
-}
-
 # ==================================================================================
-# IAM Role para EventBridge
+# IAM Role para EventBridge (mantém pra produção depois)
 # ==================================================================================
 
 resource "aws_iam_role" "eventbridge_role" {
@@ -61,7 +42,7 @@ resource "aws_iam_role" "eventbridge_role" {
   }
 }
 
-# Policy para EventBridge enviar pra SQS
+# Policy para EventBridge enviar pra SQS (mantém pra produção depois)
 resource "aws_iam_role_policy" "eventbridge_sqs_policy" {
   name = "pod99-eventbridge-sqs-policy"
   role = aws_iam_role.eventbridge_role.id
@@ -87,7 +68,7 @@ output "eventbridge_rule_name" {
   value       = aws_cloudwatch_event_rule.transacao_autorizada.name
 }
 
-output "eventbridge_rule_arn" {
-  description = "ARN da rule EventBridge"
-  value       = aws_cloudwatch_event_rule.transacao_autorizada.arn
+output "eventbridge_note" {
+  description = "Nota sobre EventBridge"
+  value       = "⚠️ EventBridge Target não funciona no LocalStack. Contabilização será síncrona no app por agora."
 }
