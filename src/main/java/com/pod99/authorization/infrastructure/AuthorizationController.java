@@ -7,6 +7,7 @@ import com.pod99.common.exception.InsufficientLimitException;
 import com.pod99.common.exception.LockAcquisitionException;
 import com.pod99.common.exception.ProblemDetail;
 import com.pod99.common.exception.RateLimitExceededException;
+import com.pod99.common.infrastructure.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -46,15 +47,22 @@ public class AuthorizationController {
             @RequestBody AuthorizeTransactionRequest request,
             @RequestHeader("Idempotency-Key") String idempotencyKey) {
         
-        String correlationId = UUID.randomUUID().toString();
-        String traceId = UUID.randomUUID().toString();
+        // 🔐 Validar autenticação
+        String accountId = RequestContext.requireAccountId();
+        log.info("✅ Usuário autenticado: {}", accountId);
+        
+        // 📍 Correlation ID e Trace ID
+        String correlationId = RequestContext.getCorrelationId();
+        String traceId = RequestContext.getTraceId();
+        
         String instance = String.format("/v1/contratos/%s/autorizacoes", idContrato);
         
         MDC.put("X-Correlation-ID", correlationId);
         MDC.put("X-Trace-ID", traceId);
+        MDC.put("X-Account-Id", accountId);
         
-        log.info("📡 POST /v1/contratos/{}/autorizacoes | key={} | conta={}", 
-            idContrato, idempotencyKey, request.getIdConta());
+        log.info("📡 POST /v1/contratos/{}/autorizacoes | key={} | conta={} | account={}", 
+            idContrato, idempotencyKey, request.getIdConta(), accountId);
         
         try {
             AuthorizeTransactionResponse response = authorizeUseCase.execute(
@@ -105,6 +113,19 @@ public class AuthorizationController {
             return ResponseEntity
                 .status(HttpStatus.UNPROCESSABLE_ENTITY)
                 .body(ProblemDetail.validationError(
+                    e.getMessage(),
+                    instance,
+                    correlationId
+                ));
+        
+        } catch (RequestContext.UnauthorizedException e) {
+            log.warn("🔐 Autorização: {}", e.getMessage());
+            return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(ProblemDetail.of(
+                    "https://api.pod99.com/errors/unauthorized",
+                    "Unauthorized",
+                    401,
                     e.getMessage(),
                     instance,
                     correlationId
