@@ -39,6 +39,7 @@ import java.util.UUID;
 public class AuthorizationController {
     
     private final AuthorizeTransactionUseCase authorizeUseCase;
+    private final JwtValidator jwtValidator;
     
     
     @PostMapping("/{idContrato}/autorizacoes")
@@ -146,6 +147,59 @@ public class AuthorizationController {
                 
         } finally {
             MDC.clear();
+        }
+    }
+    
+    
+    /**
+     * 🔐 LAMBDA AUTHORIZER ENDPOINT
+     * 
+     * Recebe evento do API Gateway e retorna IAM Policy
+     * 
+     * POST /authorize
+     * {
+     *   "authorizationToken": "Bearer jwt-ACC-001",
+     *   "methodArn": "arn:aws:execute-api:us-east-1:123456789012:api-id/stage/method/resource"
+     * }
+     * 
+     * Response:
+     * {
+     *   "principalId": "user-ACC-001",
+     *   "policyDocument": { ... },
+     *   "context": { "accountId": "ACC-001" }
+     * }
+     */
+    @PostMapping("/authorize")
+    public ResponseEntity<?> authorize(@RequestBody AuthorizerEvent event) {
+        String authToken = event.getAuthorizationToken();
+        String methodArn = event.getMethodArn();
+        
+        log.info("🔐 Lambda Authorizer | token={} | method_arn={}", 
+            authToken.replaceAll("jwt-.*", "jwt-***"), methodArn);
+        
+        try {
+            // Validar JWT e extrair account ID
+            var accountIdOptional = jwtValidator.validateAndExtractAccountId(authToken);
+            
+            if (accountIdOptional.isEmpty()) {
+                log.warn("❌ Autorização falhou: token inválido");
+                return ResponseEntity.ok(
+                    AuthorizerResponse.deny("user-unauthorized", methodArn)
+                );
+            }
+            
+            String accountId = accountIdOptional.get();
+            log.info("✅ Autorização concedida | account_id={}", accountId);
+            
+            return ResponseEntity.ok(
+                AuthorizerResponse.allow(accountId, methodArn)
+            );
+            
+        } catch (Exception e) {
+            log.error("❌ Erro ao processar autorização", e);
+            return ResponseEntity.ok(
+                AuthorizerResponse.deny("user-error", methodArn)
+            );
         }
     }
 }

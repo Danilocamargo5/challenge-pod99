@@ -100,16 +100,7 @@ resource "aws_apigatewayv2_route" "health" {
   target    = "integrations/${aws_apigatewayv2_integration.app_integration.id}"
 }
 
-# POST /v1/contratos/{id_contrato}/autorizacoes (com autenticação futura)
-resource "aws_apigatewayv2_route" "authorize_post" {
-  api_id    = aws_apigatewayv2_api.pod99_api.id
-  route_key = "POST /v1/contratos/{id_contrato}/autorizacoes"
-  target    = "integrations/${aws_apigatewayv2_integration.app_integration.id}"
-
-  # Comentado: autorização via Lambda Authorizer (futura)
-  # authorization_type = "CUSTOM"
-  # authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-}
+# ℹ️ Routes estão em lambda-authorizer.tf (com autenticação ativa)
 
 # ==================================================================================
 # Outputs
