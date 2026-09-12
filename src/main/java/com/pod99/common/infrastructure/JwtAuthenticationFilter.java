@@ -13,21 +13,16 @@ import java.io.IOException;
 import java.util.UUID;
 
 /**
- * Authentication Filter para testar JWT localmente
+ * ❌ DESABILITADO - Usar Lambda Authorizer Handler em vez de filtro Spring
  * 
+ * Authentication Filter para testar JWT localmente
  * Simula o comportamento do Lambda Authorizer do API Gateway
  * 
- * IMPORTANTE: Este filter é APENAS para ambiente local/test
- * Em PRODUÇÃO: usar API Gateway + Lambda Authorizer real
- * 
- * Comportamento:
- * - Header Authorization: Bearer <token> obrigatório
- * - Token validado: Bearer jwt-<account-id> ou Bearer test-*
- * - Sem token: 401 Unauthorized
- * - Token inválido: 403 Forbidden
+ * IMPORTANTE: Em PRODUÇÃO, o API Gateway chama Lambda Authorizer (não este filtro)
+ * A validação JWT é feita FORA da app, no API Gateway
  */
+// @Component  ❌ DESABILITADO
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     
