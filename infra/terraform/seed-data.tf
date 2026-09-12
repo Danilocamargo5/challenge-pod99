@@ -6,7 +6,7 @@
 resource "aws_dynamodb_table_item" "test_limits_1" {
   table_name = aws_dynamodb_table.limits.name
   hash_key   = "id_contrato"
-  
+
   item = jsonencode({
     id_contrato = { S = "CONTA-001" }
     id_conta    = { S = "ACC-001" }
@@ -21,7 +21,7 @@ resource "aws_dynamodb_table_item" "test_limits_1" {
 resource "aws_dynamodb_table_item" "test_limits_2" {
   table_name = aws_dynamodb_table.limits.name
   hash_key   = "id_contrato"
-  
+
   item = jsonencode({
     id_contrato = { S = "CONTA-002" }
     id_conta    = { S = "ACC-001" }
@@ -36,7 +36,7 @@ resource "aws_dynamodb_table_item" "test_limits_2" {
 resource "aws_dynamodb_table_item" "test_limits_3" {
   table_name = aws_dynamodb_table.limits.name
   hash_key   = "id_contrato"
-  
+
   item = jsonencode({
     id_contrato = { S = "CONTA-003" }
     id_conta    = { S = "ACC-001" }

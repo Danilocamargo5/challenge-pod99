@@ -1,6 +1,6 @@
 terraform {
   required_version = ">= 1.0"
-  
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -25,14 +25,14 @@ provider "aws" {
   dynamic "endpoints" {
     for_each = var.use_localstack ? [1] : []
     content {
-      apigateway   = "http://localhost:4566"
-      lambda       = "http://localhost:4566"
-      sqs          = "http://localhost:4566"
-      dynamodb     = "http://localhost:4566"
-      events       = "http://localhost:4566"
-      cloudwatch   = "http://localhost:4566"
-      logs         = "http://localhost:4566"
-      iam          = "http://localhost:4566"
+      apigateway = "http://localhost:4566"
+      lambda     = "http://localhost:4566"
+      sqs        = "http://localhost:4566"
+      dynamodb   = "http://localhost:4566"
+      events     = "http://localhost:4566"
+      cloudwatch = "http://localhost:4566"
+      logs       = "http://localhost:4566"
+      iam        = "http://localhost:4566"
     }
   }
 
@@ -53,21 +53,21 @@ provider "aws" {
 locals {
   # Naming convention
   name_prefix = "${var.project}-${var.environment}"
-  
+
   # Table names (sem referência circular - valores literais)
   table_limits         = "pod99-limits"
   table_authorizations = "pod99-authorizations"
   table_accounting     = "pod99-accounting"
   table_locks          = "pod99-locks"
   table_rate_limit     = "pod99-rate-limit"
-  
+
   # Queue names
   queue_accounting     = "pod99-accounting-queue"
   queue_accounting_dlq = "pod99-accounting-dlq"
-  
+
   # Rule names
   rule_transacao_autorizada = "pod99-transacao-autorizada-rule"
-  
+
   # Common tags
   common_tags = {
     Environment = var.environment

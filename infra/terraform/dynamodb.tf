@@ -4,9 +4,9 @@
 
 # 1. Tabela de Limites (Contracts)
 resource "aws_dynamodb_table" "limits" {
-  name           = "pod99-limits"
-  billing_mode   = var.dynamodb_billing_mode
-  hash_key       = "id_contrato"
+  name         = "pod99-limits"
+  billing_mode = var.dynamodb_billing_mode
+  hash_key     = "id_contrato"
   attribute {
     name = "id_contrato"
     type = "S"
@@ -20,9 +20,9 @@ resource "aws_dynamodb_table" "limits" {
 
 # 2. Tabela de Autorizações
 resource "aws_dynamodb_table" "authorizations" {
-  name           = "pod99-authorizations"
-  billing_mode   = var.dynamodb_billing_mode
-  hash_key       = "id_autorizacao"
+  name         = "pod99-authorizations"
+  billing_mode = var.dynamodb_billing_mode
+  hash_key     = "id_autorizacao"
   attribute {
     name = "id_autorizacao"
     type = "S"
@@ -36,9 +36,9 @@ resource "aws_dynamodb_table" "authorizations" {
 
 # 3. Tabela de Contabilização
 resource "aws_dynamodb_table" "accounting" {
-  name           = "pod99-accounting"
-  billing_mode   = var.dynamodb_billing_mode
-  hash_key       = "event_id"
+  name         = "pod99-accounting"
+  billing_mode = var.dynamodb_billing_mode
+  hash_key     = "event_id"
   attribute {
     name = "event_id"
     type = "S"
@@ -52,9 +52,9 @@ resource "aws_dynamodb_table" "accounting" {
 
 # 4. Tabela de Locks (Distributed Locking)
 resource "aws_dynamodb_table" "locks" {
-  name           = "pod99-locks"
-  billing_mode   = var.dynamodb_billing_mode
-  hash_key       = "lock_key"
+  name         = "pod99-locks"
+  billing_mode = var.dynamodb_billing_mode
+  hash_key     = "lock_key"
   attribute {
     name = "lock_key"
     type = "S"
@@ -68,9 +68,9 @@ resource "aws_dynamodb_table" "locks" {
 
 # 5. Tabela de Rate Limit
 resource "aws_dynamodb_table" "rate_limit" {
-  name           = "pod99-rate-limit"
-  billing_mode   = var.dynamodb_billing_mode
-  hash_key       = "account_id"
+  name         = "pod99-rate-limit"
+  billing_mode = var.dynamodb_billing_mode
+  hash_key     = "account_id"
   attribute {
     name = "account_id"
     type = "S"

@@ -5,6 +5,7 @@
 resource "aws_api_gateway_rest_api" "pod99_api" {
   name        = "pod99-authorization-api"
   description = "POD99 Transaction Authorization API"
+
   endpoint_configuration {
     types = ["REGIONAL"]
   }
@@ -45,130 +46,190 @@ resource "aws_api_gateway_resource" "authorize" {
 }
 
 # ==================================================================================
-# LAMBDA AUTHORIZER (ANTES dos métodos)
+# LAMBDA AUTHORIZER
 # ==================================================================================
 
 resource "aws_api_gateway_authorizer" "lambda_authorizer" {
-  name            = "pod99-lambda-authorizer"
-  rest_api_id     = aws_api_gateway_rest_api.pod99_api.id
-  authorizer_uri  = "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:000000000000:function:pod99-lambda-authorizer/invocations"
+  name        = "pod99-lambda-authorizer"
+  rest_api_id = aws_api_gateway_rest_api.pod99_api.id
+
+  authorizer_uri = "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:000000000000:function:pod99-lambda-authorizer/invocations"
+
   identity_source = "method.request.header.Authorization"
 }
 
 # ==================================================================================
-# MÉTODO 1: POST /v1/contratos/{idContrato}/autorizacoes (com Lambda Authorizer)
+# MÉTODO 1
+# POST /v1/contratos/{idContrato}/autorizacoes
+# Com Lambda Authorizer
 # ==================================================================================
 
-# Método com path parameter
 resource "aws_api_gateway_method" "autorizar_transacao" {
-  rest_api_id      = aws_api_gateway_rest_api.pod99_api.id
-  resource_id      = aws_api_gateway_resource.autorizacoes.id
-  http_method      = "POST"
-  authorization    = "CUSTOM"
-  authorizer_id    = aws_api_gateway_authorizer.lambda_authorizer.id
-  
-  # Declarar que aceita o path parameter
+  rest_api_id = aws_api_gateway_rest_api.pod99_api.id
+  resource_id = aws_api_gateway_resource.autorizacoes.id
+
+  http_method   = "POST"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.lambda_authorizer.id
+
   request_parameters = {
     "method.request.path.idContrato" = true
   }
 }
 
-# Request parameters do método
+# ==================================================================================
+# METHOD RESPONSE - 200
+# ==================================================================================
+
 resource "aws_api_gateway_method_response" "autorizar_transacao_200" {
-  rest_api_id      = aws_api_gateway_rest_api.pod99_api.id
-  resource_id      = aws_api_gateway_resource.autorizacoes.id
-  http_method      = "POST"
-  status_code      = "200"
+  rest_api_id = aws_api_gateway_rest_api.pod99_api.id
+  resource_id = aws_api_gateway_resource.autorizacoes.id
+
+  http_method = aws_api_gateway_method.autorizar_transacao.http_method
+  status_code = "200"
+
+  depends_on = [
+    aws_api_gateway_method.autorizar_transacao
+  ]
 }
 
-# Integração HTTP Proxy
+# ==================================================================================
+# INTEGRAÇÃO HTTP PROXY
+# ==================================================================================
+
 resource "aws_api_gateway_integration" "autorizar_transacao_integration" {
-  rest_api_id             = aws_api_gateway_rest_api.pod99_api.id
-  resource_id             = aws_api_gateway_resource.autorizacoes.id
-  http_method             = aws_api_gateway_method.autorizar_transacao.http_method
-  type                    = "HTTP_PROXY"
-  uri                     = "http://host.docker.internal:8080/v1/contratos/{idContrato}/autorizacoes"
-  integration_http_method = "POST"
-}
+  rest_api_id = aws_api_gateway_rest_api.pod99_api.id
+  resource_id = aws_api_gateway_resource.autorizacoes.id
 
-# Mapear path parameter na integração
-resource "aws_api_gateway_integration_request" "autorizar_transacao_integration_request" {
-  rest_api_id       = aws_api_gateway_rest_api.pod99_api.id
-  resource_id       = aws_api_gateway_resource.autorizacoes.id
-  http_method       = aws_api_gateway_method.autorizar_transacao.http_method
-  
+  http_method = aws_api_gateway_method.autorizar_transacao.http_method
+
+  type                    = "HTTP_PROXY"
+  integration_http_method = "POST"
+
+  uri = "http://host.docker.internal:8080/v1/contratos/{idContrato}/autorizacoes"
+
   request_parameters = {
     "integration.request.path.idContrato" = "method.request.path.idContrato"
   }
-}
 
-# Resposta da integração
-resource "aws_api_gateway_integration_response" "autorizar_transacao_integration_response" {
-  rest_api_id       = aws_api_gateway_rest_api.pod99_api.id
-  resource_id       = aws_api_gateway_resource.autorizacoes.id
-  http_method       = aws_api_gateway_method.autorizar_transacao.http_method
-  status_code       = aws_api_gateway_method_response.autorizar_transacao_200.status_code
+  depends_on = [
+    aws_api_gateway_method.autorizar_transacao
+  ]
 }
 
 # ==================================================================================
-# MÉTODO 2: POST /v1/contratos/authorize (Lambda Authorizer Handler, sem validação)
+# INTEGRAÇÃO RESPONSE - 200
+# ==================================================================================
+
+resource "aws_api_gateway_integration_response" "autorizar_transacao_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.pod99_api.id
+  resource_id = aws_api_gateway_resource.autorizacoes.id
+
+  http_method = aws_api_gateway_method.autorizar_transacao.http_method
+  status_code = aws_api_gateway_method_response.autorizar_transacao_200.status_code
+
+  depends_on = [
+    aws_api_gateway_method_response.autorizar_transacao_200,
+    aws_api_gateway_integration.autorizar_transacao_integration
+  ]
+}
+
+# ==================================================================================
+# MÉTODO 2
+# POST /v1/contratos/authorize
+# Sem Authorizer
 # ==================================================================================
 
 resource "aws_api_gateway_method" "lambda_authorizer_handler" {
-  rest_api_id      = aws_api_gateway_rest_api.pod99_api.id
-  resource_id      = aws_api_gateway_resource.authorize.id
-  http_method      = "POST"
-  authorization    = "NONE"
-}
+  rest_api_id = aws_api_gateway_rest_api.pod99_api.id
+  resource_id = aws_api_gateway_resource.authorize.id
 
-resource "aws_api_gateway_method_response" "lambda_authorizer_handler_200" {
-  rest_api_id      = aws_api_gateway_rest_api.pod99_api.id
-  resource_id      = aws_api_gateway_resource.authorize.id
-  http_method      = "POST"
-  status_code      = "200"
-}
-
-resource "aws_api_gateway_integration" "lambda_authorizer_handler_integration" {
-  rest_api_id             = aws_api_gateway_rest_api.pod99_api.id
-  resource_id             = aws_api_gateway_resource.authorize.id
-  http_method             = aws_api_gateway_method.lambda_authorizer_handler.http_method
-  type                    = "HTTP_PROXY"
-  uri                     = "http://host.docker.internal:8080/v1/contratos/authorize"
-  integration_http_method = "POST"
-}
-
-resource "aws_api_gateway_integration_response" "lambda_authorizer_handler_integration_response" {
-  rest_api_id       = aws_api_gateway_rest_api.pod99_api.id
-  resource_id       = aws_api_gateway_resource.authorize.id
-  http_method       = aws_api_gateway_method.lambda_authorizer_handler.http_method
-  status_code       = aws_api_gateway_method_response.lambda_authorizer_handler_200.status_code
+  http_method   = "POST"
+  authorization = "NONE"
 }
 
 # ==================================================================================
-# DEPLOYMENT E STAGE (com depends_on explícito)
+# METHOD RESPONSE - 200
+# ==================================================================================
+
+resource "aws_api_gateway_method_response" "lambda_authorizer_handler_200" {
+  rest_api_id = aws_api_gateway_rest_api.pod99_api.id
+  resource_id = aws_api_gateway_resource.authorize.id
+
+  http_method = aws_api_gateway_method.lambda_authorizer_handler.http_method
+  status_code = "200"
+
+  depends_on = [
+    aws_api_gateway_method.lambda_authorizer_handler
+  ]
+}
+
+# ==================================================================================
+# INTEGRAÇÃO HTTP PROXY
+# ==================================================================================
+
+resource "aws_api_gateway_integration" "lambda_authorizer_handler_integration" {
+  rest_api_id = aws_api_gateway_rest_api.pod99_api.id
+  resource_id = aws_api_gateway_resource.authorize.id
+
+  http_method = aws_api_gateway_method.lambda_authorizer_handler.http_method
+
+  type                    = "HTTP_PROXY"
+  integration_http_method = "POST"
+
+  uri = "http://host.docker.internal:8080/v1/contratos/authorize"
+
+  depends_on = [
+    aws_api_gateway_method.lambda_authorizer_handler
+  ]
+}
+
+# ==================================================================================
+# INTEGRAÇÃO RESPONSE - 200
+# ==================================================================================
+
+resource "aws_api_gateway_integration_response" "lambda_authorizer_handler_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.pod99_api.id
+  resource_id = aws_api_gateway_resource.authorize.id
+
+  http_method = aws_api_gateway_method.lambda_authorizer_handler.http_method
+  status_code = aws_api_gateway_method_response.lambda_authorizer_handler_200.status_code
+
+  depends_on = [
+    aws_api_gateway_method_response.lambda_authorizer_handler_200,
+    aws_api_gateway_integration.lambda_authorizer_handler_integration
+  ]
+}
+
+# ==================================================================================
+# DEPLOYMENT
 # ==================================================================================
 
 resource "aws_api_gateway_deployment" "api_deployment" {
   rest_api_id = aws_api_gateway_rest_api.pod99_api.id
-  
-  # Forçar ordem correta de criação
+
   depends_on = [
     aws_api_gateway_method.autorizar_transacao,
-    aws_api_gateway_method.lambda_authorizer_handler,
-    aws_api_gateway_integration.autorizar_transacao_integration,
-    aws_api_gateway_integration_request.autorizar_transacao_integration_request,
     aws_api_gateway_method_response.autorizar_transacao_200,
+    aws_api_gateway_integration.autorizar_transacao_integration,
     aws_api_gateway_integration_response.autorizar_transacao_integration_response,
-    aws_api_gateway_integration.lambda_authorizer_handler_integration,
+
+    aws_api_gateway_method.lambda_authorizer_handler,
     aws_api_gateway_method_response.lambda_authorizer_handler_200,
+    aws_api_gateway_integration.lambda_authorizer_handler_integration,
     aws_api_gateway_integration_response.lambda_authorizer_handler_integration_response
   ]
 }
 
+# ==================================================================================
+# STAGE
+# ==================================================================================
+
 resource "aws_api_gateway_stage" "api_stage" {
   deployment_id = aws_api_gateway_deployment.api_deployment.id
   rest_api_id   = aws_api_gateway_rest_api.pod99_api.id
-  stage_name    = "local"
+
+  stage_name = "local"
 }
 
 # ==================================================================================
@@ -177,20 +238,24 @@ resource "aws_api_gateway_stage" "api_stage" {
 
 output "api_gateway_url" {
   description = "URL base da API Gateway"
-  value       = aws_api_gateway_stage.api_stage.invoke_url
+
+  value = aws_api_gateway_stage.api_stage.invoke_url
 }
 
 output "api_gateway_id" {
   description = "ID da API Gateway"
-  value       = aws_api_gateway_rest_api.pod99_api.id
+
+  value = aws_api_gateway_rest_api.pod99_api.id
 }
 
 output "authorize_url" {
-  description = "URL do Lambda Authorizer Handler"
-  value       = "${aws_api_gateway_stage.api_stage.invoke_url}/v1/contratos/authorize"
+  description = "URL do endpoint authorize"
+
+  value = "${aws_api_gateway_stage.api_stage.invoke_url}/v1/contratos/authorize"
 }
 
 output "autorizacoes_url" {
   description = "URL para autorizar transações"
-  value       = "${aws_api_gateway_stage.api_stage.invoke_url}/v1/contratos/{idContrato}/autorizacoes"
+
+  value = "${aws_api_gateway_stage.api_stage.invoke_url}/v1/contratos/{idContrato}/autorizacoes"
 }

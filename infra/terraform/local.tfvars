@@ -19,8 +19,8 @@ dynamodb_billing_mode           = "PAY_PER_REQUEST"
 dynamodb_point_in_time_recovery = false
 
 # SQS
-sqs_message_retention_seconds   = 86400  # 1 day
-sqs_visibility_timeout_seconds  = 300    # 5 minutes
+sqs_message_retention_seconds  = 86400 # 1 day
+sqs_visibility_timeout_seconds = 300   # 5 minutes
 
 # CloudWatch
 cloudwatch_log_retention_days = 7

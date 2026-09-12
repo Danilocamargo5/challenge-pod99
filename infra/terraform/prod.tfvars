@@ -17,15 +17,15 @@ environment = "prod"
 project     = "pod99"
 
 # DynamoDB
-dynamodb_billing_mode           = "PROVISIONED"  # Use PROVISIONED em prod para melhor controle
-dynamodb_point_in_time_recovery = true           # ⚠️ Ativar backup automático em prod
+dynamodb_billing_mode           = "PROVISIONED" # Use PROVISIONED em prod para melhor controle
+dynamodb_point_in_time_recovery = true          # ⚠️ Ativar backup automático em prod
 
 # SQS
-sqs_message_retention_seconds   = 1209600        # 14 days (máximo)
-sqs_visibility_timeout_seconds  = 300            # 5 minutes
+sqs_message_retention_seconds  = 1209600 # 14 days (máximo)
+sqs_visibility_timeout_seconds = 300     # 5 minutes
 
 # CloudWatch
-cloudwatch_log_retention_days = 30  # Maior retenção em prod
+cloudwatch_log_retention_days = 30 # Maior retenção em prod
 
 # API Gateway
 enable_api_gateway_logging = true
