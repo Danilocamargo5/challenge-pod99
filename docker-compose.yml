@@ -16,7 +16,7 @@ services:
       timeout: 3s
       retries: 3
 
-  # LocalStack (emula AWS: EventBridge, SQS, API Gateway)
+  # LocalStack (SEM init script - Terraform vai criar tudo!)
   localstack:
     image: localstack/localstack:4.14.0
     container_name: localstack
@@ -24,21 +24,13 @@ services:
       - "4566:4566"
     environment:
       - SERVICES=apigateway,events,sqs,dynamodb
-      - DEBUG=1
+      - DEBUG=0
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
       - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
-      - ./infra/localstack-init.sh:/init-services.sh
       - /var/run/docker.sock:/var/run/docker.sock
     hostname: localstack
-    entrypoint: >
-      sh -c "
-      docker-entrypoint.sh &
-      sleep 10 &&
-      /init-services.sh &&
-      wait
-      "
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
       interval: 5s
