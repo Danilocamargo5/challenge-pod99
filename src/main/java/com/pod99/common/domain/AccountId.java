@@ -31,7 +31,8 @@ public class AccountId {
         }
         
         // Validar range (ACC-001 até ACC-100)
-        int accountNumber = Integer.parseInt(value.substring(4));
+        // substring(5) pega só os 3 dígitos (não o hífen)
+        int accountNumber = Integer.parseInt(value.substring(5));
         if (accountNumber < 1 || accountNumber > 999) {
             throw new IllegalArgumentException(
                 "Account ID inválido: número deve estar entre 001 e 999"
