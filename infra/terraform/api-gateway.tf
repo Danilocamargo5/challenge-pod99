@@ -221,6 +221,8 @@ resource "aws_api_gateway_integration" "autorizar_transacao_integration" {
     "integration.request.path.idContrato" = "method.request.path.idContrato"
   }
 
+  passthrough_behavior = "WHEN_NO_TEMPLATES"
+
   depends_on = [
     aws_api_gateway_method.autorizar_transacao
   ]
@@ -404,6 +406,8 @@ resource "aws_api_gateway_integration" "lambda_authorizer_handler_integration" {
   integration_http_method = "POST"
 
   uri = "http://host.docker.internal:8080/v1/contratos/authorize"
+
+  passthrough_behavior = "WHEN_NO_TEMPLATES"
 
   depends_on = [
     aws_api_gateway_method.lambda_authorizer_handler
