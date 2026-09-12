@@ -1,8 +1,10 @@
 # ==================================================================================
-# EventBridge Rules
+# EventBridge Rules (COMENTADO - não essencial por agora)
 # ==================================================================================
 
-# Rule para eventos de transação autorizada
+# Rule para eventos de transação autorizada - CRIADA mas SEM target
+# (Target será adicionado quando a integração com SQS estiver estável)
+
 resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
   name        = "pod99-transacao-autorizada-rule"
   description = "Regra para eventos TransacaoAutorizada"
@@ -25,7 +27,9 @@ resource "aws_cloudwatch_event_target" "accounting_queue" {
   arn       = aws_sqs_queue.accounting_queue.arn
   role_arn  = aws_iam_role.eventbridge_role.arn
 
-  sqs_target {}
+  sqs_target {
+    batch_size = 1
+  }
 }
 
 # ==================================================================================
