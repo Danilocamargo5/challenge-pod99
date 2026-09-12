@@ -25,7 +25,7 @@ resource "aws_cloudwatch_event_target" "accounting_queue" {
   arn       = aws_sqs_queue.accounting_queue.arn
   role_arn  = aws_iam_role.eventbridge_role.arn
 
-  sqstarget {
+  sqs_target {
     message_group_id_path = "$.event_id"
   }
 }
