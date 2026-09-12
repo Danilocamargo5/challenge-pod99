@@ -17,17 +17,26 @@ resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
   }
 }
 
-# Target: enviar para SQS de accounting (FIFO)
-resource "aws_cloudwatch_event_target" "accounting_queue" {
-  rule      = aws_cloudwatch_event_rule.transacao_autorizada.name
-  target_id = "SendToAccountingQueue"
-  arn       = aws_sqs_queue.accounting_queue.arn
-  role_arn  = aws_iam_role.eventbridge_role.arn
+# ==================================================================================
+# EventBridge Target - Criado via AWS CLI (Terraform não suporta sqs_target)
+# ==================================================================================
 
-  # Para fila FIFO - message_group_id_path com string literal, não JSONPath
-  sqs_target {
-    message_group_id_path = "transacao-autorizada"
+resource "null_resource" "eventbridge_target" {
+  provisioner "local-exec" {
+    command = <<-EOT
+      aws events put-targets \
+        --rule ${aws_cloudwatch_event_rule.transacao_autorizada.name} \
+        --targets "Id"="1","Arn"="${aws_sqs_queue.accounting_queue.arn}","RoleArn"="${aws_iam_role.eventbridge_role.arn}","SqsParameters"='{"MessageGroupIdPath":"$.id"}' \
+        --endpoint-url http://localhost:4566 \
+        --region us-east-1
+    EOT
   }
+
+  depends_on = [
+    aws_cloudwatch_event_rule.transacao_autorizada,
+    aws_sqs_queue.accounting_queue,
+    aws_iam_role.eventbridge_role
+  ]
 }
 
 # ==================================================================================
@@ -84,4 +93,9 @@ output "eventbridge_rule_name" {
 output "eventbridge_rule_arn" {
   description = "ARN da rule EventBridge"
   value       = aws_cloudwatch_event_rule.transacao_autorizada.arn
+}
+
+output "eventbridge_target_note" {
+  description = "Target criado via AWS CLI"
+  value       = "✅ EventBridge Target criado com SqsParameters via AWS CLI"
 }
