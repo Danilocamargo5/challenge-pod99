@@ -13,13 +13,13 @@ resource "aws_dynamodb_table_item" "test_limits" {
       S = format("CONTA-%03d", count.index + 1)
     }
     id_conta = {
-      S = format("ACC-%03d", (count.index / 3) + 1)
+      S = format("ACC-%03d", floor(count.index / 3) + 1)
     }
     limite = {
-      N = tostring(51000 + ((count.index / 3 + 1) * 1000))
+      N = tostring(51000.00 + (floor(count.index / 3) + 1) * 1000)
     }
     disponivel = {
-      N = tostring(51000 + ((count.index / 3 + 1) * 1000))
+      N = tostring(51000.00 + (floor(count.index / 3) + 1) * 1000)
     }
     reservado = {
       N = "0.00"
