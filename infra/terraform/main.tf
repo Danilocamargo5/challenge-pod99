@@ -36,6 +36,11 @@ provider "aws" {
     }
   }
 
+  # Desabilitar validação de credenciais quando usar LocalStack
+  skip_credentials_validation = var.use_localstack
+  skip_requesting_account_id  = var.use_localstack
+  skip_region_validation      = var.use_localstack
+
   default_tags {
     tags = local.common_tags
   }
