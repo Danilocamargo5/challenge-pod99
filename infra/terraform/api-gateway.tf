@@ -261,6 +261,74 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
 }
 
 # ==================================================================================
+# INTEGRAÇÃO RESPONSE - 402
+# ==================================================================================
+
+resource "aws_api_gateway_integration_response" "autorizar_transacao_integration_response_402" {
+  rest_api_id = aws_api_gateway_rest_api.pod99_api.id
+  resource_id = aws_api_gateway_resource.autorizacoes.id
+
+  http_method = "POST"
+  status_code = "402"
+
+  depends_on = [
+    aws_api_gateway_method_response.autorizar_transacao_402,
+    aws_api_gateway_integration.autorizar_transacao_integration
+  ]
+}
+
+# ==================================================================================
+# INTEGRAÇÃO RESPONSE - 409
+# ==================================================================================
+
+resource "aws_api_gateway_integration_response" "autorizar_transacao_integration_response_409" {
+  rest_api_id = aws_api_gateway_rest_api.pod99_api.id
+  resource_id = aws_api_gateway_resource.autorizacoes.id
+
+  http_method = "POST"
+  status_code = "409"
+
+  depends_on = [
+    aws_api_gateway_method_response.autorizar_transacao_409,
+    aws_api_gateway_integration.autorizar_transacao_integration
+  ]
+}
+
+# ==================================================================================
+# INTEGRAÇÃO RESPONSE - 422
+# ==================================================================================
+
+resource "aws_api_gateway_integration_response" "autorizar_transacao_integration_response_422" {
+  rest_api_id = aws_api_gateway_rest_api.pod99_api.id
+  resource_id = aws_api_gateway_resource.autorizacoes.id
+
+  http_method = "POST"
+  status_code = "422"
+
+  depends_on = [
+    aws_api_gateway_method_response.autorizar_transacao_422,
+    aws_api_gateway_integration.autorizar_transacao_integration
+  ]
+}
+
+# ==================================================================================
+# INTEGRAÇÃO RESPONSE - 429
+# ==================================================================================
+
+resource "aws_api_gateway_integration_response" "autorizar_transacao_integration_response_429" {
+  rest_api_id = aws_api_gateway_rest_api.pod99_api.id
+  resource_id = aws_api_gateway_resource.autorizacoes.id
+
+  http_method = "POST"
+  status_code = "429"
+
+  depends_on = [
+    aws_api_gateway_method_response.autorizar_transacao_429,
+    aws_api_gateway_integration.autorizar_transacao_integration
+  ]
+}
+
+# ==================================================================================
 # MÉTODO 2
 # POST /v1/contratos/authorize
 #
@@ -351,6 +419,10 @@ resource "aws_api_gateway_deployment" "api_deployment" {
     aws_api_gateway_integration.autorizar_transacao_integration,
     aws_api_gateway_integration_response.autorizar_transacao_integration_response_200,
     aws_api_gateway_integration_response.autorizar_transacao_integration_response_201,
+    aws_api_gateway_integration_response.autorizar_transacao_integration_response_402,
+    aws_api_gateway_integration_response.autorizar_transacao_integration_response_409,
+    aws_api_gateway_integration_response.autorizar_transacao_integration_response_422,
+    aws_api_gateway_integration_response.autorizar_transacao_integration_response_429,
 
     # Endpoint do Authorizer
     aws_api_gateway_method.lambda_authorizer_handler,
