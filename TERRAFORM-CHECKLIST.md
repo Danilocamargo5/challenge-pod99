@@ -198,3 +198,123 @@ terraform destroy -var-file=local.tfvars
 ---
 
 **PRONTO! Terraform 100% configurado e documentado!** 🚀
+
+---
+
+## 🔐 LAMBDA AUTHORIZER (NOVO!)
+
+### Arquivo
+- ✅ `infra/terraform/lambda-authorizer.tf` - Configura o authorizer
+
+### Configuração
+
+O Lambda Authorizer:
+- ✅ Tipo: HTTP (aponta pra endpoint do app)
+- ✅ Endpoint: `POST /v1/contratos/authorize`
+- ✅ Cache: 5 minutos (300 segundos)
+- ✅ Identity source: `$request.header.Authorization`
+
+### Routes com Autenticação
+
+| Rota | Método | Autenticação | Target |
+|------|--------|--------------|--------|
+| /v1/contratos/{id}/autorizacoes | POST | ✅ Lambda Authorizer | App |
+| /v1/contratos/authorize | POST | ❌ Nenhuma (é o authorizer!) | App |
+| /health | GET | ❌ Nenhuma | App |
+
+### Fluxo
+
+```
+Cliente (Authorization: Bearer jwt-ACC-001)
+    ↓
+API Gateway (intercepta)
+    ↓
+Lambda Authorizer (POST /v1/contratos/authorize)
+    ↓
+JwtValidator.validateAndExtractAccountId()
+    ↓
+AuthorizerResponse.allow() ou deny()
+    ↓
+Se Allow: prossegue pra app
+Se Deny: 403 Forbidden
+```
+
+### DTOs
+
+- ✅ `AuthorizerEvent.java` - Evento recebido do API Gateway
+- ✅ `AuthorizerResponse.java` - Resposta com IAM Policy
+- ✅ `JwtValidator.java` - Validação de JWT (STUB)
+
+### Controller Update
+
+- ✅ `AuthorizationController.java` - Adicionalado endpoint POST /authorize
+
+---
+
+## 📊 Todas as Variáveis Terraform
+
+### Infraestrutura
+```hcl
+use_localstack = true/false
+aws_region = "us-east-1"
+aws_access_key_id = "test" ou env var
+aws_secret_access_key = "test" ou env var
+```
+
+### Ambiente
+```hcl
+environment = "local" | "dev" | "prod"
+project = "pod99"
+```
+
+### DynamoDB
+```hcl
+dynamodb_billing_mode = "PAY_PER_REQUEST"
+dynamodb_point_in_time_recovery = false (true em prod)
+```
+
+### SQS
+```hcl
+sqs_message_retention_seconds = 86400 (1 dia)
+sqs_visibility_timeout_seconds = 300 (5 min)
+```
+
+### Logs
+```hcl
+cloudwatch_log_retention_days = 7 (30 em prod)
+enable_api_gateway_logging = true
+```
+
+### Tags
+```hcl
+tags = {
+  Environment = "local"
+  ManagedBy = "Terraform"
+}
+```
+
+---
+
+## 🚀 Terraform Workflow COMPLETO
+
+```bash
+# 1. Init
+cd infra/terraform
+terraform init
+
+# 2. Plan
+terraform plan -var-file=local.tfvars
+
+# 3. Apply (cria TUDO!)
+terraform apply -var-file=local.tfvars
+
+# 4. Outputs
+terraform output
+
+# 5. Destroy (se necessário)
+terraform destroy -var-file=local.tfvars
+```
+
+---
+
+**PRONTO! Lambda Authorizer + Terraform = Autenticação no gateway!** 🔐🚀

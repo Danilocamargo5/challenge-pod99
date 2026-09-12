@@ -56,7 +56,8 @@ terraform apply -var-file=local.tfvars
 ✅ API Gateway:
    - HTTP API
    - Stage: local
-   - Routes: GET /health, POST /v1/contratos/{id}/autorizacoes
+   - Lambda Authorizer (POST /v1/contratos/authorize)
+   - Routes: GET /health, POST /v1/contratos/{id}/autorizacoes (COM AUTENTICAÇÃO!)
 
 ✅ CloudWatch Logs:
    - Log group para API Gateway
@@ -68,7 +69,7 @@ Apply complete! Resources: XX added
 
 Outputs:
 api_gateway_invoke_url = http://...
-sqs_accounting_queue_url = http://...
+lambda_authorizer_uri = http://...
 test_data_info = {
   accounts  = "100 (ACC-001 até ACC-100)"
   contracts = "300 (CONTA-001 até CONTA-300)"
@@ -92,8 +93,8 @@ git pull origin develop
 ```
 ✅ Tomcat started on port 8080
 ✅ Spring Boot application started
-✅ RateLimitInterceptor loaded
-✅ JwtAuthenticationFilter loaded
+✅ JwtValidator loaded
+✅ AuthorizationController loaded
 ```
 
 ---
@@ -102,8 +103,14 @@ git pull origin develop
 
 Aguarde o Terminal 3 estar pronto, depois:
 
+---
+
+## 🧪 Testes
+
+### 1️⃣ Teste LOCAL (direto no app, sem API Gateway)
+
+**Token válido (ACC-001):**
 ```bash
-# Teste básico
 curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-ACC-001" \
@@ -118,11 +125,89 @@ curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
 # Resposta esperada: 201 Created
 # {
 #   "id_autorizacao": "UUID",
-#   "saldo_reservado": 51000.00,  (51000 - 100)
-#   "correlation_id": "UUID",
-#   "status": "APPROVED",
+#   "saldo_reservado": 50900.00,
+#   "repetition": false,
 #   "timestamp": "ISO 8601"
 # }
+```
+
+**Token inválido:**
+```bash
+curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
+  -H "Authorization: Bearer invalid-token" \
+  -d '...'
+
+# Resposta esperada: 401 Unauthorized
+```
+
+---
+
+### 2️⃣ Teste Lambda Authorizer (endpoint /authorize)
+
+**Validar token:**
+```bash
+curl -X POST http://localhost:8080/v1/contratos/authorize \
+  -H "Content-Type: application/json" \
+  -d '{
+    "authorizationToken": "Bearer jwt-ACC-001",
+    "methodArn": "arn:aws:execute-api:us-east-1:123456789012:api/stage/POST/endpoint"
+  }'
+
+# Resposta: 200 OK
+# {
+#   "principalId": "user-ACC-001",
+#   "policyDocument": {
+#     "Version": "2012-10-17",
+#     "Statement": [
+#       {
+#         "Action": "execute:Invoke",
+#         "Effect": "Allow",
+#         "Resource": "arn:..."
+#       }
+#     ]
+#   },
+#   "context": {
+#     "accountId": "ACC-001"
+#   }
+# }
+```
+
+---
+
+### 3️⃣ Teste via API Gateway (LocalStack)
+
+Primeiro, obter URL da API Gateway:
+```bash
+cd infra/terraform
+terraform output api_gateway_invoke_url
+# http://localhost:4566/restapis/API_ID/local/
+```
+
+**Com autenticação (token válido):**
+```bash
+curl -X POST http://APIGW_URL/v1/contratos/CONTA-001/autorizacoes \
+  -H "Authorization: Bearer jwt-ACC-001" \
+  -H "Idempotency-Key: test-1" \
+  -d '{"idConta": "ACC-001", "valor": 100, ...}'
+
+# Response: 201 Created (API Gateway → Lambda Authorizer → App)
+```
+
+**Sem autenticação:**
+```bash
+curl -X POST http://APIGW_URL/v1/contratos/CONTA-001/autorizacoes \
+  -d '...'
+
+# Response: 401 Unauthorized (API Gateway bloqueia)
+```
+
+**Token inválido:**
+```bash
+curl -X POST http://APIGW_URL/v1/contratos/CONTA-001/autorizacoes \
+  -H "Authorization: Bearer invalid-token" \
+  -d '...'
+
+# Response: 403 Forbidden (Lambda Authorizer retorna Deny)
 ```
 
 ---
@@ -152,57 +237,66 @@ ACC-100:
 
 ---
 
-## 🧪 Teste Local vs API Gateway
+## 🔄 Fluxo de Requisição Completo
 
-### Teste LOCAL (direto no App, sem API Gateway):
-```bash
-curl http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
-  -H "Authorization: Bearer jwt-ACC-001" \
-  ...
 ```
-
-### Teste via API Gateway (LocalStack):
-```bash
-# URL do API Gateway aparece no output do Terraform
-curl http://API_GATEWAY_URL/v1/contratos/CONTA-001/autorizacoes \
-  -H "Authorization: Bearer jwt-ACC-001" \
-  ...
+1. curl → POST /v1/contratos/CONTA-001/autorizacoes
+   Authorization: Bearer jwt-ACC-001
+   ↓
+2. API Gateway (LocalStack 4566)
+   - Intercepta requisição
+   - Extrai header Authorization
+   ↓
+3. Lambda Authorizer
+   - Chama: POST /v1/contratos/authorize
+   - JwtValidator valida JWT
+   - Retorna IAM Policy (Allow/Deny)
+   ↓
+4. Se Allow → API Gateway passa pra app
+   ↓
+5. App Spring Boot (8080)
+   - RequestContext configura account ID
+   - AuthorizationController processa
+   - AuthorizeTransactionUseCase:
+     * Valida AccountId (ACC-XXX)
+     * Valida ContractId (CONTA-XXX)
+     * Valida relação Account-Contract
+     * Adquire locks
+     * Verifica idempotência
+     * Valida limite
+     * Reserva valor
+     * Publica evento → EventBridge
+   ↓
+6. EventBridge
+   - Recebe TransacaoAutorizada
+   - Envia pra SQS accounting-queue
+   ↓
+7. AccountingEventListener (async)
+   - Processa evento
+   - Contabiliza transação
+   ↓
+8. Retorna 201 Created (ou 200 OK se repetição)
 ```
 
 ---
 
-## 🔄 Fluxo de Requisição
+## 🛑 Se algo der errado:
 
+### LocalStack não sobe:
+```bash
+docker-compose down
+docker-compose up
 ```
-1. curl → POST /v1/contratos/CONTA-001/autorizacoes
-   ↓
-2. JwtAuthenticationFilter (local)
-   - Extrai: Authorization: Bearer jwt-ACC-001
-   - Valida: formato "Bearer ..."
-   - Extrai account ID: ACC-001
-   - Adiciona no request
-   ↓
-3. AuthorizationController
-   - Cria: AccountId("ACC-001") ✅ formato válido
-   - Cria: ContractId("CONTA-001") ✅ formato válido
-   - Valida: CONTA-001 ∈ ACC-001? ✅ SIM
-   ↓
-4. AuthorizeTransactionUseCase
-   - Adquire locks
-   - Verifica idempotência
-   - Valida limite
-   - Reserva valor
-   - Publica evento → EventBridge
-   ↓
-5. EventBridge
-   - Recebe TransacaoAutorizada
-   - Envia pra SQS accounting-queue
-   ↓
-6. AccountingEventListener (async)
-   - Processa evento
-   - Contabiliza transação
-   ↓
-7. Retorna 201 Created (ou 200 OK se repetição)
+
+### Terraform falha:
+```bash
+terraform plan -var-file=local.tfvars
+```
+
+### App não inicia:
+```bash
+./mvnw clean package -DskipTests
+./mvnw spring-boot:run
 ```
 
 ---
@@ -223,64 +317,10 @@ curl http://API_GATEWAY_URL/v1/contratos/CONTA-001/autorizacoes \
 - ✅ Contrato existe?
 - ✅ Contrato pertence à conta?
 
----
-
-## 🛑 Se algo der errado:
-
-### LocalStack não sobe:
-```bash
-# Check logs
-docker logs challenge-pod99-localstack-1
-
-# Restart
-docker-compose down
-docker-compose up
-```
-
-### Terraform falha:
-```bash
-# Ver erros detalhados
-terraform apply -var-file=local.tfvars -var-file=debug
-
-# Destruir e recomeçar (cuidado - deleta dados!)
-terraform destroy -var-file=local.tfvars
-terraform apply -var-file=local.tfvars
-```
-
-### App não inicia:
-```bash
-# Clean build
-./mvnw clean package -DskipTests
-
-# Run
-./mvnw spring-boot:run
-```
-
----
-
-## 📊 Verificar Status
-
-### DynamoDB (tabelas + dados):
-```bash
-awslocal dynamodb list-tables --region us-east-1
-awslocal dynamodb scan --table-name pod99-limits --region us-east-1 | head -20
-```
-
-### SQS (filas):
-```bash
-awslocal sqs list-queues --region us-east-1
-```
-
-### API Gateway:
-```bash
-awslocal apigatewayv2 get-apis --region us-east-1
-```
-
-### Terraform (outputs):
-```bash
-cd infra/terraform
-terraform output
-```
+### JwtValidator
+- ✅ Formato: Bearer jwt-ACC-001
+- ✅ Extrai account ID
+- ⚠️ STUB: não valida assinatura (para produção, usar Auth0/Cognito/Keycloak)
 
 ---
 
@@ -292,12 +332,13 @@ terraform output
 - [ ] 300 registros em pod99-limits
 - [ ] SQS queues criadas
 - [ ] EventBridge rule ativa
-- [ ] API Gateway criada
+- [ ] API Gateway criada com Lambda Authorizer
 - [ ] App Spring Boot up
-- [ ] Teste 201 Created
+- [ ] Teste 201 Created (token válido)
 - [ ] Teste 200 OK (idempotência)
 - [ ] Teste 402 (limite insuficiente)
-- [ ] Teste 403 (sem token)
+- [ ] Teste 401 (sem token)
+- [ ] Teste 403 (token inválido)
 - [ ] Load test 5k TPS
 
 ---
