@@ -18,16 +18,40 @@ resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
 }
 
 # ==================================================================================
-# EventBridge Target - Criado via awslocal (LocalStack CLI)
+# EventBridge Target - Criado via Python boto3
 # ==================================================================================
 
 resource "null_resource" "eventbridge_target" {
   provisioner "local-exec" {
     command = <<-EOT
-      awslocal events put-targets \
-        --rule ${aws_cloudwatch_event_rule.transacao_autorizada.name} \
-        --targets "Id=1,Arn=${aws_sqs_queue.accounting_queue.arn},RoleArn=${aws_iam_role.eventbridge_role.arn},SqsParameters={MessageGroupIdPath=$.id}" \
-        --region us-east-1
+python3 << 'PYTHON_EOF'
+import boto3
+import json
+
+events = boto3.client(
+    'events',
+    endpoint_url='http://localhost:4566',
+    region_name='us-east-1',
+    aws_access_key_id='test',
+    aws_secret_access_key='test'
+)
+
+try:
+    events.put_targets(
+        Rule='pod99-transacao-autorizada-rule',
+        Targets=[{
+            'Id': '1',
+            'Arn': '${aws_sqs_queue.accounting_queue.arn}',
+            'RoleArn': '${aws_iam_role.eventbridge_role.arn}',
+            'SqsParameters': {
+                'MessageGroupIdPath': '$.id'
+            }
+        }]
+    )
+    print('✅ EventBridge Target criado com sucesso!')
+except Exception as e:
+    print(f'Erro: {e}')
+PYTHON_EOF
     EOT
   }
 
