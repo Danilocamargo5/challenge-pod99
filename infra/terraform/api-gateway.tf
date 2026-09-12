@@ -108,8 +108,6 @@ resource "aws_api_gateway_integration" "autorizar_transacao_integration" {
   request_parameters = {
     "integration.request.path.idContrato" = "method.request.path.idContrato"
   }
-
-  depends_on = [aws_api_gateway_method.autorizar_transacao]
 }
 
 resource "aws_api_gateway_integration" "lambda_authorizer_handler_integration" {
@@ -118,8 +116,6 @@ resource "aws_api_gateway_integration" "lambda_authorizer_handler_integration" {
   http_method      = "POST"
   type             = "HTTP_PROXY"
   uri              = "http://host.docker.internal:8080/v1/contratos/authorize"
-  
-  depends_on = [aws_api_gateway_method.lambda_authorizer_handler]
 }
 
 # ==================================================================================
@@ -131,8 +127,6 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_200" {
   resource_id      = aws_api_gateway_resource.autorizacoes.id
   http_method      = "POST"
   status_code      = "200"
-  
-  depends_on = [aws_api_gateway_integration.autorizar_transacao_integration]
 }
 
 resource "aws_api_gateway_integration_response" "lambda_authorizer_handler_200" {
@@ -140,8 +134,6 @@ resource "aws_api_gateway_integration_response" "lambda_authorizer_handler_200" 
   resource_id      = aws_api_gateway_resource.authorize.id
   http_method      = "POST"
   status_code      = "200"
-  
-  depends_on = [aws_api_gateway_integration.lambda_authorizer_handler_integration]
 }
 
 # ==================================================================================
@@ -152,6 +144,10 @@ resource "aws_api_gateway_deployment" "api_deployment" {
   rest_api_id = aws_api_gateway_rest_api.pod99_api.id
 
   depends_on = [
+    aws_api_gateway_method.autorizar_transacao,
+    aws_api_gateway_method.lambda_authorizer_handler,
+    aws_api_gateway_method_response.autorizar_transacao_200,
+    aws_api_gateway_method_response.lambda_authorizer_handler_200,
     aws_api_gateway_integration.autorizar_transacao_integration,
     aws_api_gateway_integration.lambda_authorizer_handler_integration,
     aws_api_gateway_integration_response.autorizar_transacao_200,
