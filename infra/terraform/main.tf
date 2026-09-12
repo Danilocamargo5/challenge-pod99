@@ -37,60 +37,8 @@ provider "aws" {
   }
 
   default_tags {
-    tags = {
-      Environment = var.environment
-      Project     = var.project
-      ManagedBy   = "Terraform"
-    }
+    tags = local.common_tags
   }
-}
-
-# ==================================================================================
-# Variables
-# ==================================================================================
-
-variable "use_localstack" {
-  description = "Usar LocalStack (local) ou AWS real (prod)"
-  type        = bool
-  default     = true
-}
-
-variable "aws_region" {
-  description = "AWS Region"
-  type        = string
-  default     = "us-east-1"
-}
-
-variable "aws_access_key_id" {
-  description = "AWS Access Key (local: test, prod: from env)"
-  type        = string
-  default     = "test"
-  sensitive   = true
-}
-
-variable "aws_secret_access_key" {
-  description = "AWS Secret Key (local: test, prod: from env)"
-  type        = string
-  default     = "test"
-  sensitive   = true
-}
-
-variable "environment" {
-  description = "Environment (local, dev, prod)"
-  type        = string
-  default     = "local"
-}
-
-variable "project" {
-  description = "Project name"
-  type        = string
-  default     = "pod99"
-}
-
-variable "dynamodb_billing_mode" {
-  description = "DynamoDB billing mode"
-  type        = string
-  default     = "PAY_PER_REQUEST"
 }
 
 # ==================================================================================
@@ -98,23 +46,4 @@ variable "dynamodb_billing_mode" {
 # ==================================================================================
 
 data "aws_caller_identity" "current" {}
-
-# ==================================================================================
-# Local values
-# ==================================================================================
-
-locals {
-  # Nomes das tabelas
-  table_limits          = "${var.project}-limits"
-  table_authorizations  = "${var.project}-authorizations"
-  table_accounting      = "${var.project}-accounting"
-  table_locks           = "${var.project}-locks"
-  table_rate_limit      = "${var.project}-rate-limit"
-  
-  # Nomes das filas
-  queue_accounting      = "${var.project}-accounting-queue"
-  queue_accounting_dlq  = "${var.project}-accounting-dlq"
-  
-  # Nomes das rules
-  rule_transacao_autorizada = "${var.project}-transacao-autorizada-rule"
-}
+data "aws_region" "current" {}

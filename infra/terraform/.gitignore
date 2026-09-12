@@ -1,0 +1,41 @@
+# ==================================================================================
+# Terraform Local Files (.gitignore)
+# ==================================================================================
+
+# Terraform state files
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Terraform directories
+.terraform/
+.terraform.tfvars
+terraform.tfvars
+
+# OS and editor files
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Secrets (if accidentally added)
+*.pem
+*.key
+*.crt
+
+# Temporary files
+*.tmp
+*.bak
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Environment files (keep example, not actual)
+!example.tfvars
