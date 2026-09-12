@@ -16,14 +16,14 @@ services:
       timeout: 3s
       retries: 3
 
-  # LocalStack (SEM init script - Terraform vai criar tudo!)
+  # LocalStack (COM TODOS OS SERVIÇOS!)
   localstack:
     image: localstack/localstack:4.14.0
     container_name: localstack
     ports:
       - "4566:4566"
     environment:
-      - SERVICES=apigateway,events,sqs,dynamodb
+      - SERVICES=apigateway,events,sqs,dynamodb,logs,iam
       - DEBUG=0
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
