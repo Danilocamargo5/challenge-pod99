@@ -218,7 +218,8 @@ resource "aws_api_gateway_integration" "autorizar_transacao_integration" {
   uri = "http://host.docker.internal:8080/v1/contratos/{idContrato}/autorizacoes"
 
   request_parameters = {
-    "integration.request.path.idContrato" = "method.request.path.idContrato"
+    "integration.request.path.idContrato"      = "method.request.path.idContrato"
+    "integration.request.header.Authorization" = "method.request.header.Authorization"
   }
 
   request_templates = {
@@ -410,6 +411,10 @@ resource "aws_api_gateway_integration" "lambda_authorizer_handler_integration" {
   integration_http_method = "POST"
 
   uri = "http://host.docker.internal:8080/v1/contratos/authorize"
+
+  request_parameters = {
+    "integration.request.header.Authorization" = "method.request.header.Authorization"
+  }
 
   request_templates = {
     "application/json" = "$input.body"
