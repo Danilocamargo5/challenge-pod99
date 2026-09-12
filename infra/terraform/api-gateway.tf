@@ -221,6 +221,9 @@ resource "aws_api_gateway_integration" "autorizar_transacao_integration" {
     "integration.request.path.idContrato" = "method.request.path.idContrato"
   }
 
+  # Passar a resposta do backend como está
+  passthrough_behavior = "WHEN_NO_TEMPLATES"
+
   depends_on = [
     aws_api_gateway_method.autorizar_transacao
   ]
@@ -236,6 +239,10 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
 
   http_method = "POST"
   status_code = "200"
+
+  response_templates = {
+    "application/json" = "$input.json('$')"
+  }
 
   depends_on = [
     aws_api_gateway_method_response.autorizar_transacao_200,
@@ -254,6 +261,10 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
   http_method = "POST"
   status_code = "201"
 
+  response_templates = {
+    "application/json" = "$input.json('$')"
+  }
+
   depends_on = [
     aws_api_gateway_method_response.autorizar_transacao_201,
     aws_api_gateway_integration.autorizar_transacao_integration
@@ -270,6 +281,10 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
 
   http_method = "POST"
   status_code = "402"
+
+  response_templates = {
+    "application/json" = "$input.json('$')"
+  }
 
   depends_on = [
     aws_api_gateway_method_response.autorizar_transacao_402,
@@ -288,6 +303,10 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
   http_method = "POST"
   status_code = "409"
 
+  response_templates = {
+    "application/json" = "$input.json('$')"
+  }
+
   depends_on = [
     aws_api_gateway_method_response.autorizar_transacao_409,
     aws_api_gateway_integration.autorizar_transacao_integration
@@ -305,6 +324,10 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
   http_method = "POST"
   status_code = "422"
 
+  response_templates = {
+    "application/json" = "$input.json('$')"
+  }
+
   depends_on = [
     aws_api_gateway_method_response.autorizar_transacao_422,
     aws_api_gateway_integration.autorizar_transacao_integration
@@ -321,6 +344,10 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
 
   http_method = "POST"
   status_code = "429"
+
+  response_templates = {
+    "application/json" = "$input.json('$')"
+  }
 
   depends_on = [
     aws_api_gateway_method_response.autorizar_transacao_429,
@@ -375,6 +402,9 @@ resource "aws_api_gateway_integration" "lambda_authorizer_handler_integration" {
 
   uri = "http://host.docker.internal:8080/v1/contratos/authorize"
 
+  # Passar a resposta do backend como está
+  passthrough_behavior = "WHEN_NO_TEMPLATES"
+
   depends_on = [
     aws_api_gateway_method.lambda_authorizer_handler
   ]
@@ -390,6 +420,10 @@ resource "aws_api_gateway_integration_response" "lambda_authorizer_handler_integ
 
   http_method = "POST"
   status_code = "200"
+
+  response_templates = {
+    "application/json" = "$input.json('$')"
+  }
 
   depends_on = [
     aws_api_gateway_method_response.lambda_authorizer_handler_200,
