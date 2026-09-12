@@ -24,8 +24,9 @@ resource "aws_cloudwatch_event_target" "accounting_queue" {
   arn       = aws_sqs_queue.accounting_queue.arn
   role_arn  = aws_iam_role.eventbridge_role.arn
 
-  # Bloco sqs_target requerido pelo LocalStack
+  # SqsParameters - batch_size é o parâmetro mínimo requerido
   sqs_target {
+    batch_size = 10
   }
 }
 
