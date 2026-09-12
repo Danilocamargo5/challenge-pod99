@@ -5,7 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @Builder
@@ -22,7 +22,7 @@ public class DomainEvent {
     private String eventVersion;
     
     @JsonProperty("occurred_at")
-    private LocalDateTime occurredAt;
+    private Instant occurredAt;
     
     @JsonProperty("correlation_id")
     private String correlationId;

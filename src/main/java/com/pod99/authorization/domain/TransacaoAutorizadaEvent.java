@@ -6,8 +6,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.UUID;
 
 @Data
@@ -25,7 +23,7 @@ public class TransacaoAutorizadaEvent extends DomainEvent {
         event.setEventId(UUID.randomUUID().toString());
         event.setEventType("TransacaoAutorizada");
         event.setEventVersion("1.0");
-        event.setOccurredAt(LocalDateTime.now(ZoneId.of("UTC")));
+        event.setOccurredAt(java.time.Instant.now());
         event.setCorrelationId(auth.getCorrelationId());
         event.setTraceId(traceId);
         event.setIdAutorizacao(auth.getIdAutorizacao());
