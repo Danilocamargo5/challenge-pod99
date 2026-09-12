@@ -68,7 +68,7 @@ resource "aws_api_gateway_integration" "autorizar_transacao_integration" {
   resource_id      = aws_api_gateway_resource.autorizacoes.id
   http_method      = aws_api_gateway_method.autorizar_transacao.http_method
   type             = "HTTP_PROXY"
-  uri              = "http://localhost:8080/v1/contratos/{idContrato}/autorizacoes"
+  uri              = "http://host.docker.internal:8080/v1/contratos/{idContrato}/autorizacoes"
   request_parameters = {
     "integration.request.path.idContrato" = "method.request.path.idContrato"
   }
@@ -88,7 +88,7 @@ resource "aws_api_gateway_integration" "lambda_authorizer_handler_integration" {
   resource_id      = aws_api_gateway_resource.authorize.id
   http_method      = aws_api_gateway_method.lambda_authorizer_handler.http_method
   type             = "HTTP_PROXY"
-  uri              = "http://localhost:8080/v1/contratos/authorize"
+  uri              = "http://host.docker.internal:8080/v1/contratos/authorize"
 }
 
 # ==================================================================================
