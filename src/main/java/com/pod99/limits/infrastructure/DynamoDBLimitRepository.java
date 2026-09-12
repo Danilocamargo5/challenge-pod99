@@ -27,6 +27,7 @@ public class DynamoDBLimitRepository implements LimitRepository {
             .tableName(TABLE_NAME)
             .item(Map.of(
                 "id_contrato", AttributeValue.builder().s(limit.getIdContrato()).build(),
+                "id_conta", AttributeValue.builder().s(limit.getIdConta()).build(),
                 "limite", AttributeValue.builder().n(limit.getLimite().toPlainString()).build(),
                 "disponivel", AttributeValue.builder().n(limit.getDisponivel().toPlainString()).build(),
                 "reservado", AttributeValue.builder().n(limit.getReservado().toPlainString()).build()
@@ -81,6 +82,7 @@ public class DynamoDBLimitRepository implements LimitRepository {
         var item = response.item();
         Limit limit = Limit.builder()
             .idContrato(item.get("id_contrato").s())
+            .idConta(item.get("id_conta").s())
             .limite(new BigDecimal(item.get("limite").n()))
             .disponivel(new BigDecimal(item.get("disponivel").n()))
             .reservado(new BigDecimal(item.get("reservado").n()))
