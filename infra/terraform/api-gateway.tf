@@ -211,10 +211,8 @@ resource "aws_api_gateway_integration" "autorizar_transacao_integration" {
   rest_api_id = aws_api_gateway_rest_api.pod99_api.id
   resource_id = aws_api_gateway_resource.autorizacoes.id
 
-  http_method = aws_api_gateway_method.autorizar_transacao.http_method
-
-  type                    = "HTTP_PROXY"
-  integration_http_method = "POST"
+  http_method = "POST"
+  type        = "HTTP"
 
   uri = "http://host.docker.internal:8080/v1/contratos/{idContrato}/autorizacoes"
 
@@ -222,7 +220,9 @@ resource "aws_api_gateway_integration" "autorizar_transacao_integration" {
     "integration.request.path.idContrato" = "method.request.path.idContrato"
   }
 
-  # Passar a resposta do backend como está
+  request_templates = {
+    "application/json" = "$input.body"
+  }
 
   depends_on = [
     aws_api_gateway_method.autorizar_transacao
@@ -402,14 +402,14 @@ resource "aws_api_gateway_integration" "lambda_authorizer_handler_integration" {
   rest_api_id = aws_api_gateway_rest_api.pod99_api.id
   resource_id = aws_api_gateway_resource.authorize.id
 
-  http_method = aws_api_gateway_method.lambda_authorizer_handler.http_method
-
-  type                    = "HTTP_PROXY"
-  integration_http_method = "POST"
+  http_method = "POST"
+  type        = "HTTP"
 
   uri = "http://host.docker.internal:8080/v1/contratos/authorize"
 
-  # Passar a resposta do backend como está
+  request_templates = {
+    "application/json" = "$input.body"
+  }
 
   depends_on = [
     aws_api_gateway_method.lambda_authorizer_handler
