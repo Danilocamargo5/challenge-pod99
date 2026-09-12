@@ -100,9 +100,10 @@ resource "aws_api_gateway_method" "autorizar_transacao" {
   authorization = "CUSTOM"
   authorizer_id = aws_api_gateway_authorizer.lambda_authorizer.id
 
-  # Path parameter obrigatório
+  # Path parameter e headers obrigatórios
   request_parameters = {
     "method.request.path.idContrato" = true
+    "method.request.header.Authorization" = true
   }
 }
 
