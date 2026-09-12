@@ -50,12 +50,10 @@ public class DynamoDBLimitRepository implements LimitRepository {
                 .expressionAttributeValues(Map.of(
                     ":disp", AttributeValue.builder().n(limit.getDisponivel().toPlainString()).build(),
                     ":res", AttributeValue.builder().n(limit.getReservado().toPlainString()).build(),
-                    ":inc", AttributeValue.builder().n("1").build()
-                ))
-                .conditionExpression("disponivel >= :zero")
-                .expressionAttributeValues(Map.of(
+                    ":inc", AttributeValue.builder().n("1").build(),
                     ":zero", AttributeValue.builder().n("0").build()
                 ))
+                .conditionExpression("disponivel >= :zero")
                 .build();
             
             dynamoDbClient.updateItem(request);
