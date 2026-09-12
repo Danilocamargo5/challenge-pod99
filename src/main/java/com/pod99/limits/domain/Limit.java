@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class Limit {
     private String idContrato;
+    private String idConta;  // ← NOVO! Para validar relação
     private BigDecimal limite;
     private BigDecimal disponivel;
     private BigDecimal reservado;
