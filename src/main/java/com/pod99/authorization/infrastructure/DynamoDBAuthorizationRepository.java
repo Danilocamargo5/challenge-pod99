@@ -2,6 +2,7 @@ package com.pod99.authorization.infrastructure;
 
 import com.pod99.authorization.domain.Authorization;
 import com.pod99.authorization.domain.AuthorizationRepository;
+import com.pod99.authorization.domain.AuthorizationStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
@@ -70,7 +71,7 @@ public class DynamoDBAuthorizationRepository implements AuthorizationRepository 
                 .idContrato(item.get("id_contrato").s())
                 .valor(new BigDecimal(item.get("valor").n()))
                 .saldoReservado(new BigDecimal(item.get("saldo_reservado").n()))
-                .status(Authorization.Status.valueOf(item.get("status").s()))
+                .status(AuthorizationStatus.valueOf(item.get("status").s()))
                 .criadoEm(LocalDateTime.parse(item.get("criado_em").s()))
                 .correlationId(item.get("correlation_id").s())
                 .build();
