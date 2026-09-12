@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pod99.authorization.application.AuthorizeTransactionRequest;
 import com.pod99.authorization.application.AuthorizeTransactionResponse;
 import com.pod99.authorization.application.AuthorizeTransactionUseCase;
+import com.pod99.authorization.infrastructure.JwtValidator;
 import com.pod99.common.exception.InsufficientLimitException;
 import com.pod99.common.exception.LockAcquisitionException;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,12 +48,15 @@ class AuthorizationControllerTest {
     @Mock
     private AuthorizeTransactionUseCase authorizeUseCase;
     
+    @Mock
+    private JwtValidator jwtValidator;
+    
     private ObjectMapper objectMapper;
     
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-        AuthorizationController controller = new AuthorizationController(authorizeUseCase);
+        AuthorizationController controller = new AuthorizationController(authorizeUseCase, jwtValidator);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
     

@@ -4,6 +4,7 @@ import com.pod99.authorization.domain.Authorization;
 import com.pod99.authorization.domain.AuthorizationRepository;
 import com.pod99.authorization.domain.AuthorizationStatus;
 import com.pod99.authorization.domain.TransacaoAutorizadaEvent;
+import com.pod99.common.domain.AccountContractValidator;
 import com.pod99.common.exception.InsufficientLimitException;
 import com.pod99.common.exception.LockAcquisitionException;
 import com.pod99.config.EventBridgePublisher;
@@ -42,6 +43,9 @@ class AuthorizeTransactionUseCaseTest {
     @Mock
     private LockService lockService;
     
+    @Mock
+    private AccountContractValidator accountContractValidator;
+    
     private AuthorizeTransactionUseCase useCase;
     
     @BeforeEach
@@ -51,7 +55,8 @@ class AuthorizeTransactionUseCaseTest {
             authRepository, 
             limitRepository, 
             eventPublisher,
-            lockService);
+            lockService,
+            accountContractValidator);
         
         // Setup MDC para testes
         MDC.put("X-Correlation-ID", "test-correlation");
