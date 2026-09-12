@@ -14,6 +14,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class Authorization {
     private String idAutorizacao;
+    private String idempotencyKey;
     private String idContrato;
     private String idConta;
     private BigDecimal valor;
@@ -35,10 +36,12 @@ public class Authorization {
             String idEstabelecimento,
             Map<String, Object> metadata,
             BigDecimal saldoReservado,
-            String correlationId) {
+            String correlationId,
+            String idempotencyKey) {
         
         return Authorization.builder()
             .idAutorizacao(java.util.UUID.randomUUID().toString())
+            .idempotencyKey(idempotencyKey)
             .idContrato(idContrato)
             .idConta(idConta)
             .valor(valor)

@@ -163,7 +163,8 @@ public class AuthorizeTransactionUseCase {
             request.getIdEstabelecimento(),
             request.getMetadata(),
             limit.getDisponivel(),
-            correlationId
+            correlationId,
+            idempotencyKey
         );
         
         // 7. Salvar autorização
