@@ -1,5 +1,5 @@
 # ==================================================================================
-# EventBridge Rules (SEM Target - LocalStack não suporta)
+# EventBridge Rules
 # ==================================================================================
 
 resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
@@ -17,8 +17,21 @@ resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
   }
 }
 
+# Target: enviar para SQS de accounting (FIFO)
+resource "aws_cloudwatch_event_target" "accounting_queue" {
+  rule      = aws_cloudwatch_event_rule.transacao_autorizada.name
+  target_id = "SendToAccountingQueue"
+  arn       = aws_sqs_queue.accounting_queue.arn
+  role_arn  = aws_iam_role.eventbridge_role.arn
+
+  # Para fila FIFO - message_group_id_path com string literal, não JSONPath
+  sqs_target {
+    message_group_id_path = "transacao-autorizada"
+  }
+}
+
 # ==================================================================================
-# IAM Role para EventBridge (mantém pra produção depois)
+# IAM Role para EventBridge
 # ==================================================================================
 
 resource "aws_iam_role" "eventbridge_role" {
@@ -42,7 +55,7 @@ resource "aws_iam_role" "eventbridge_role" {
   }
 }
 
-# Policy para EventBridge enviar pra SQS (mantém pra produção depois)
+# Policy para EventBridge enviar pra SQS
 resource "aws_iam_role_policy" "eventbridge_sqs_policy" {
   name = "pod99-eventbridge-sqs-policy"
   role = aws_iam_role.eventbridge_role.id
@@ -68,7 +81,7 @@ output "eventbridge_rule_name" {
   value       = aws_cloudwatch_event_rule.transacao_autorizada.name
 }
 
-output "eventbridge_note" {
-  description = "Nota sobre EventBridge"
-  value       = "⚠️ EventBridge Target não funciona no LocalStack. Contabilização será síncrona no app por agora."
+output "eventbridge_rule_arn" {
+  description = "ARN da rule EventBridge"
+  value       = aws_cloudwatch_event_rule.transacao_autorizada.arn
 }
