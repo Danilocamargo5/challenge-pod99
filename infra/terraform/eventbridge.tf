@@ -1,9 +1,6 @@
 # ==================================================================================
-# EventBridge Rules (COMENTADO - não essencial por agora)
+# EventBridge Rules
 # ==================================================================================
-
-# Rule para eventos de transação autorizada - CRIADA mas SEM target
-# (Target será adicionado quando a integração com SQS estiver estável)
 
 resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
   name        = "pod99-transacao-autorizada-rule"
@@ -26,8 +23,7 @@ resource "aws_cloudwatch_event_target" "accounting_queue" {
   target_id = "SendToAccountingQueue"
   arn       = aws_sqs_queue.accounting_queue.arn
   role_arn  = aws_iam_role.eventbridge_role.arn
-
-  # sqs_target vazio - LocalStack requer este bloco mas não aceita parâmetros
+  input_path = "$"
 }
 
 # ==================================================================================
