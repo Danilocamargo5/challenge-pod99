@@ -240,7 +240,6 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
   http_method = "POST"
   status_code = "200"
 
-  status_code_selection_regex = "200"
 
   response_templates = {
     "application/json" = "$input.json('$')"
@@ -264,7 +263,6 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
   status_code = "201"
 
   # Mapear HTTP 201 do backend para 201
-  status_code_selection_regex = "201"
 
   response_templates = {
     "application/json" = "$input.json('$')"
@@ -287,7 +285,6 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
   http_method = "POST"
   status_code = "402"
 
-  status_code_selection_regex = "402"
 
   response_templates = {
     "application/json" = "$input.json('$')"
@@ -310,7 +307,6 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
   http_method = "POST"
   status_code = "409"
 
-  status_code_selection_regex = "409"
 
   response_templates = {
     "application/json" = "$input.json('$')"
@@ -333,7 +329,6 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
   http_method = "POST"
   status_code = "422"
 
-  status_code_selection_regex = "422"
 
   response_templates = {
     "application/json" = "$input.json('$')"
@@ -356,7 +351,6 @@ resource "aws_api_gateway_integration_response" "autorizar_transacao_integration
   http_method = "POST"
   status_code = "429"
 
-  status_code_selection_regex = "429"
 
   response_templates = {
     "application/json" = "$input.json('$')"
@@ -434,7 +428,6 @@ resource "aws_api_gateway_integration_response" "lambda_authorizer_handler_integ
   http_method = "POST"
   status_code = "200"
 
-  status_code_selection_regex = "200"
 
   response_templates = {
     "application/json" = "$input.json('$')"
