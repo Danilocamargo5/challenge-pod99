@@ -4,7 +4,7 @@
 
 # Rule para eventos de transação autorizada
 resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
-  name        = local.rule_transacao_autorizada
+  name        = "pod99-transacao-autorizada-rule"
   description = "Regra para eventos TransacaoAutorizada"
   state       = "ENABLED"
 
@@ -14,7 +14,7 @@ resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
   })
 
   tags = {
-    Name = local.rule_transacao_autorizada
+    Name = "pod99-transacao-autorizada-rule"
   }
 }
 
@@ -26,7 +26,6 @@ resource "aws_cloudwatch_event_target" "accounting_queue" {
 
   role_arn = aws_iam_role.eventbridge_role.arn
 
-  # Usar message group ID do evento para FIFO
   sqs_target {
     message_group_id_path = "$.event_id"
   }
@@ -37,7 +36,7 @@ resource "aws_cloudwatch_event_target" "accounting_queue" {
 # ==================================================================================
 
 resource "aws_iam_role" "eventbridge_role" {
-  name = "${var.project}-eventbridge-role"
+  name = "pod99-eventbridge-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -53,13 +52,13 @@ resource "aws_iam_role" "eventbridge_role" {
   })
 
   tags = {
-    Name = "${var.project}-eventbridge-role"
+    Name = "pod99-eventbridge-role"
   }
 }
 
 # Policy para EventBridge enviar pra SQS
 resource "aws_iam_role_policy" "eventbridge_sqs_policy" {
-  name = "${var.project}-eventbridge-sqs-policy"
+  name = "pod99-eventbridge-sqs-policy"
   role = aws_iam_role.eventbridge_role.id
 
   policy = jsonencode({
@@ -77,10 +76,6 @@ resource "aws_iam_role_policy" "eventbridge_sqs_policy" {
     ]
   })
 }
-
-# ==================================================================================
-# Outputs
-# ==================================================================================
 
 output "eventbridge_rule_name" {
   description = "Nome da rule EventBridge"

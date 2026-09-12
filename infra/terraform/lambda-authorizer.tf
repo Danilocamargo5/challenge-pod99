@@ -8,7 +8,7 @@ resource "aws_apigatewayv2_authorizer" "jwt_authorizer" {
   api_id           = aws_apigatewayv2_api.pod99_api.id
   authorizer_type  = "HTTP"
   name             = "${var.project}-jwt-authorizer-${var.environment}"
-  identity_source  = "$request.header.Authorization"
+  identity_sources = ["$request.header.Authorization"]
   
   # Apontar pra app Spring Boot (local: host.docker.internal:8080)
   authorizer_uri = var.use_localstack ? "http://host.docker.internal:8080/v1/contratos/authorize" : "http://localhost:8080/v1/contratos/authorize"
@@ -18,10 +18,6 @@ resource "aws_apigatewayv2_authorizer" "jwt_authorizer" {
   
   # Ativar logs de autorização
   enable_simple_responses = false
-  
-  tags = {
-    Name = "${var.project}-jwt-authorizer"
-  }
 }
 
 # ==================================================================================

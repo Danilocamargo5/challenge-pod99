@@ -56,27 +56,24 @@ locals {
   # Naming convention
   name_prefix = "${var.project}-${var.environment}"
   
-  # Table names
-  table_limits         = "${name_prefix}-limits"
-  table_authorizations = "${name_prefix}-authorizations"
-  table_accounting     = "${name_prefix}-accounting"
-  table_locks          = "${name_prefix}-locks"
-  table_rate_limit     = "${name_prefix}-rate-limit"
+  # Table names (sem referência circular - valores literais)
+  table_limits         = "pod99-limits"
+  table_authorizations = "pod99-authorizations"
+  table_accounting     = "pod99-accounting"
+  table_locks          = "pod99-locks"
+  table_rate_limit     = "pod99-rate-limit"
   
   # Queue names
-  queue_accounting     = "${name_prefix}-accounting-queue"
-  queue_accounting_dlq = "${name_prefix}-accounting-dlq"
+  queue_accounting     = "pod99-accounting-queue"
+  queue_accounting_dlq = "pod99-accounting-dlq"
   
   # Rule names
-  rule_transacao_autorizada = "${name_prefix}-transacao-autorizada-rule"
+  rule_transacao_autorizada = "pod99-transacao-autorizada-rule"
   
   # Common tags
-  common_tags = merge(
-    var.tags,
-    {
-      Environment = var.environment
-      Project     = var.project
-      ManagedBy   = "Terraform"
-    }
-  )
+  common_tags = {
+    Environment = var.environment
+    Project     = var.project
+    ManagedBy   = "Terraform"
+  }
 }

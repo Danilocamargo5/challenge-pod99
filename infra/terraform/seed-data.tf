@@ -2,7 +2,6 @@
 # Seed Data - Populate DynamoDB with test data
 # ==================================================================================
 
-# Provisioner que executa o script de população APÓS criar as tabelas
 resource "null_resource" "populate_test_data" {
   provisioner "local-exec" {
     command = "bash ${path.module}/../scripts/populate-data.sh"
@@ -15,7 +14,6 @@ resource "null_resource" "populate_test_data" {
     }
   }
 
-  # Depende de todas as tabelas DynamoDB serem criadas
   depends_on = [
     aws_dynamodb_table.limits,
     aws_dynamodb_table.authorizations,
@@ -25,14 +23,9 @@ resource "null_resource" "populate_test_data" {
   ]
 
   triggers = {
-    # Re-executar se o script mudar
     script_hash = filemd5("${path.module}/../scripts/populate-data.sh")
   }
 }
-
-# ==================================================================================
-# Outputs
-# ==================================================================================
 
 output "seed_data_status" {
   description = "Status da população de dados"

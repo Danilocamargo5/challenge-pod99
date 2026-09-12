@@ -4,24 +4,24 @@
 
 # Dead Letter Queue (DLQ) para accounting
 resource "aws_sqs_queue" "accounting_dlq" {
-  name                      = "${local.queue_accounting_dlq}.fifo"
+  name                      = "pod99-accounting-dlq.fifo"
   fifo_queue                = true
   content_based_deduplication = true
-  message_retention_seconds = 1209600  # 14 dias
+  message_retention_seconds = 1209600
 
   tags = {
-    Name        = local.queue_accounting_dlq
+    Name        = "pod99-accounting-dlq"
     Description = "Dead Letter Queue para fila de contabilização"
   }
 }
 
 # Fila de Accounting (FIFO para garantir ordem)
 resource "aws_sqs_queue" "accounting_queue" {
-  name                      = "${local.queue_accounting}.fifo"
+  name                      = "pod99-accounting-queue.fifo"
   fifo_queue                = true
   content_based_deduplication = true
   visibility_timeout_seconds = 300
-  message_retention_seconds = 86400    # 1 dia
+  message_retention_seconds = 86400
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.accounting_dlq.arn
@@ -29,12 +29,11 @@ resource "aws_sqs_queue" "accounting_queue" {
   })
 
   tags = {
-    Name        = local.queue_accounting
+    Name        = "pod99-accounting-queue"
     Description = "Fila FIFO para processamento assíncrono de contabilização"
   }
 }
 
-# Output do ARN da fila
 output "accounting_queue_arn" {
   description = "ARN da fila de accounting"
   value       = aws_sqs_queue.accounting_queue.arn
