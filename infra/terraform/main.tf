@@ -47,3 +47,36 @@ provider "aws" {
 
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
+
+# ==================================================================================
+# Local Values
+# ==================================================================================
+
+locals {
+  # Naming convention
+  name_prefix = "${var.project}-${var.environment}"
+  
+  # Table names
+  table_limits         = "${name_prefix}-limits"
+  table_authorizations = "${name_prefix}-authorizations"
+  table_accounting     = "${name_prefix}-accounting"
+  table_locks          = "${name_prefix}-locks"
+  table_rate_limit     = "${name_prefix}-rate-limit"
+  
+  # Queue names
+  queue_accounting     = "${name_prefix}-accounting-queue"
+  queue_accounting_dlq = "${name_prefix}-accounting-dlq"
+  
+  # Rule names
+  rule_transacao_autorizada = "${name_prefix}-transacao-autorizada-rule"
+  
+  # Common tags
+  common_tags = merge(
+    var.tags,
+    {
+      Environment = var.environment
+      Project     = var.project
+      ManagedBy   = "Terraform"
+    }
+  )
+}
