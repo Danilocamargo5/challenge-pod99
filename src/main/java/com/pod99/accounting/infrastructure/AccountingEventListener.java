@@ -35,7 +35,7 @@ public class AccountingEventListener {
                 .idContrato(event.getIdContrato())
                 .valor(event.getValor())
                 .tipoLancamento("DEBIT")
-                .dataOperacao(event.getOccurredAt())
+                .dataOperacao(event.getOccurredAt().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime())
                 .build();
             
             recordUseCase.record(entry);
