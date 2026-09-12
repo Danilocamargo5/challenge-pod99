@@ -53,29 +53,14 @@ output "eventbridge" {
 }
 
 # ==================================================================================
-# API Gateway
-# ==================================================================================
-
-output "api_gateway" {
-  description = "API Gateway details"
-  value = {
-    api_id       = aws_apigatewayv2_api.pod99_api.id
-    invoke_url   = aws_apigatewayv2_stage.api_stage.invoke_url
-    stage_name   = aws_apigatewayv2_stage.api_stage.name
-  }
-}
-
-# ==================================================================================
 # Test Data
 # ==================================================================================
 
 output "test_data" {
   description = "Dados de teste criados"
   value = {
-    accounts  = "100 (ACC-001 até ACC-100)"
-    contracts = "300 (CONTA-001 até CONTA-300)"
-    ratio     = "3 contratos por conta"
-    example   = "ACC-001: CONTA-001, CONTA-002, CONTA-003"
+    accounts  = "1 (ACC-001)"
+    contracts = "3 (CONTA-001, CONTA-002, CONTA-003)"
   }
 }
 
