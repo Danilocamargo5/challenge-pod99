@@ -17,12 +17,18 @@ resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
   }
 }
 
-# Target: enviar para SQS de accounting
+# Target: enviar para SQS de accounting (FIFO)
 resource "aws_cloudwatch_event_target" "accounting_queue" {
   rule      = aws_cloudwatch_event_rule.transacao_autorizada.name
   target_id = "SendToAccountingQueue"
   arn       = aws_sqs_queue.accounting_queue.arn
   role_arn  = aws_iam_role.eventbridge_role.arn
+
+  # Para fila FIFO, precisa passar MessageGroupId
+  # LocalStack requer SqsParameters no input
+  input = jsonencode({
+    MessageGroupId = "transacao-autorizada"
+  })
 }
 
 # ==================================================================================
