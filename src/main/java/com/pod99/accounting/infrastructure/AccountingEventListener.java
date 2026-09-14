@@ -23,11 +23,11 @@ public class AccountingEventListener {
     @SqsListener("pod99-accounting-queue")
     public void handleTransacaoAutorizada(String message) {
         try {
-            // log.info("📨 Recebido evento SQS");
+            log.info("📨 Recebido evento SQS");
             
             TransacaoAutorizadaEvent event = objectMapper.readValue(message, TransacaoAutorizadaEvent.class);
             
-            // log.info("💰 Processando transação: id={}, valor={}", event.getIdAutorizacao(), event.getValor());
+            log.info("💰 Processando transação: id={}, valor={}", event.getIdAutorizacao(), event.getValor());
             
             AccountingEntry entry = AccountingEntry.builder()
                 .eventId(event.getEventId())
