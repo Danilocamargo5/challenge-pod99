@@ -54,6 +54,7 @@ provider "aws" {
   skip_credentials_validation = var.use_localstack
   skip_requesting_account_id  = var.use_localstack
   skip_region_validation      = var.use_localstack
+  skip_metadata_api_check     = var.use_localstack
 
   # --------------------------------------------------------------------------
   # Tags padrão
@@ -108,4 +109,3 @@ locals {
     ManagedBy   = "Terraform"
   }
 }
-

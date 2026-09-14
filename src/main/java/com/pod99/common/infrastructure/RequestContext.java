@@ -1,177 +1,230 @@
 package com.pod99.common.infrastructure;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import jakarta.servlet.http.HttpServletRequest;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Context para acessar informações de autorização do API Gateway/Lambda Authorizer
- * 
- * Funciona em 2 ambientes:
- * 
- * 1️⃣ LOCAL (com JwtAuthenticationFilter):
- *    - Filter coloca info em request.setAttribute()
- *    - RequestContext acessa via getAttribute()
- * 
- * 2️⃣ PRODUÇÃO (com API Gateway + Lambda Authorizer):
- *    - Lambda Authorizer valida JWT
- *    - API Gateway passa headers especiais:
- *      - x-account-id (ou x-authorizer-principal-id)
- *      - x-correlation-id (ou x-amzn-trace-id)
- *    - RequestContext acessa via getHeader()
- * 
- * Uso:
- *    String accountId = RequestContext.getAccountId()
- *                          .orElseThrow(() -> new UnauthorizedException());
+ * Context para acessar informações de autorização do API Gateway/Lambda Authorizer.
+ *
+ * Fluxos suportados:
+ *
+ * 1. LOCAL:
+ *    API Gateway Simulator valida a requisição via Lambda Authorizer
+ *    e encaminha:
+ *    X-Account-Id: ACC-001
+ *
+ * 2. API GATEWAY + LAMBDA AUTHORIZER:
+ *    Lambda Authorizer retorna:
+ *    context.accountId = ACC-001
+ *
+ *    API Gateway converte para:
+ *    X-Account-Id: ACC-001
  */
+@Slf4j
 @Component
-@Getter
-@RequiredArgsConstructor
 public class RequestContext {
-    
+
+    private static final String ACCOUNT_ID_ATTRIBUTE = "X-Account-Id";
+    private static final String ACCOUNT_ID_HEADER = "X-Account-Id";
+    private static final String AUTHORIZER_PRINCIPAL_HEADER = "X-Authorizer-Principal-Id";
+
     /**
-     * Retorna o account ID do usuário autenticado
-     * 
-     * Tenta em ordem:
-     * 1. request.getAttribute("X-Account-Id") (local, JwtAuthenticationFilter)
-     * 2. header "x-account-id" (API Gateway)
-     * 3. header "x-authorizer-principal-id" (Lambda Authorizer)
+     * Retorna o Account ID do usuário autenticado.
+     *
+     * Ordem:
+     * 1. request attribute X-Account-Id
+     * 2. header X-Account-Id
+     * 3. header X-Authorizer-Principal-Id
      */
     public static Optional<String> getAccountId() {
         HttpServletRequest request = getRequest();
-        
-        // 1. Tentar getAttribute (local)
-        Object attributeValue = request.getAttribute("X-Account-Id");
-        if (attributeValue instanceof String) {
-            return Optional.of((String) attributeValue);
+
+        // ==============================================================
+        // 1. Request attribute
+        // ==============================================================
+
+        Object attributeValue = request.getAttribute(ACCOUNT_ID_ATTRIBUTE);
+
+        if (attributeValue instanceof String accountId
+                && !accountId.isBlank()) {
+
+            log.debug(
+                "Account ID encontrado no request attribute: {}",
+                accountId
+            );
+
+            return Optional.of(accountId);
         }
-        
-        // 2. Tentar header x-account-id (API Gateway)
-        String header = request.getHeader("x-account-id");
-        if (header != null && !header.isEmpty()) {
-            return Optional.of(header);
+
+        // ==============================================================
+        // 2. Header X-Account-Id
+        // ==============================================================
+
+        String accountIdHeader = request.getHeader(ACCOUNT_ID_HEADER);
+
+        if (accountIdHeader != null && !accountIdHeader.isBlank()) {
+
+            log.debug(
+                "Account ID encontrado no header X-Account-Id: {}",
+                accountIdHeader
+            );
+
+            return Optional.of(accountIdHeader);
         }
-        
-        // 3. Tentar header x-authorizer-principal-id (Lambda Authorizer)
-        header = request.getHeader("x-authorizer-principal-id");
-        if (header != null && !header.isEmpty()) {
-            return Optional.of(header);
+
+        // ==============================================================
+        // 3. Principal ID do Lambda Authorizer
+        // ==============================================================
+
+        String principalId = request.getHeader(AUTHORIZER_PRINCIPAL_HEADER);
+
+        if (principalId != null && !principalId.isBlank()) {
+
+            /*
+             * AuthorizerResponse retorna:
+             *
+             * principalId = user-ACC-001
+             *
+             * Para o domínio queremos somente:
+             *
+             * ACC-001
+             */
+            String accountId = principalId.startsWith("user-")
+                ? principalId.substring("user-".length())
+                : principalId;
+
+            log.debug(
+                "Account ID extraído do principalId: {}",
+                accountId
+            );
+
+            return Optional.of(accountId);
         }
-        
+
+        // ==============================================================
+        // Diagnóstico
+        // ==============================================================
+
+        log.warn("Account ID não encontrado na requisição.");
+
+        if (log.isDebugEnabled()) {
+            Collections.list(request.getHeaderNames())
+                .forEach(headerName ->
+                    log.debug(
+                        "Header recebido: {}={}",
+                        headerName,
+                        request.getHeader(headerName)
+                    )
+                );
+        }
+
         return Optional.empty();
     }
-    
+
     /**
-     * Retorna o correlation ID para tracing distribuído
-     * 
-     * Tenta em ordem:
-     * 1. request.getAttribute("X-Correlation-ID")
-     * 2. header "x-correlation-id"
-     * 3. header "x-amzn-trace-id" (AWS X-Ray)
-     * 4. Gera novo UUID se não encontrar
+     * Retorna o correlation ID.
      */
     public static String getCorrelationId() {
         HttpServletRequest request = getRequest();
-        
-        // 1. getAttribute
+
         Object attributeValue = request.getAttribute("X-Correlation-ID");
-        if (attributeValue instanceof String) {
-            return (String) attributeValue;
+
+        if (attributeValue instanceof String value
+                && !value.isBlank()) {
+            return value;
         }
-        
-        // 2. Header x-correlation-id
-        String header = request.getHeader("x-correlation-id");
-        if (header != null && !header.isEmpty()) {
+
+        String header = request.getHeader("X-Correlation-ID");
+
+        if (header != null && !header.isBlank()) {
             return header;
         }
-        
-        // 3. Header x-amzn-trace-id (AWS X-Ray)
-        header = request.getHeader("x-amzn-trace-id");
-        if (header != null && !header.isEmpty()) {
+
+        header = request.getHeader("X-Amzn-Trace-Id");
+
+        if (header != null && !header.isBlank()) {
             return header;
         }
-        
-        // 4. Gerar novo
+
         return UUID.randomUUID().toString();
     }
-    
+
     /**
-     * Retorna o trace ID para W3C tracing
-     * 
-     * Tenta em ordem:
-     * 1. request.getAttribute("X-Trace-ID")
-     * 2. header "x-trace-id"
-     * 3. header "traceparent" (W3C Trace Context)
-     * 4. Gera novo UUID se não encontrar
+     * Retorna o trace ID.
      */
     public static String getTraceId() {
         HttpServletRequest request = getRequest();
-        
-        // 1. getAttribute
+
         Object attributeValue = request.getAttribute("X-Trace-ID");
-        if (attributeValue instanceof String) {
-            return (String) attributeValue;
+
+        if (attributeValue instanceof String value
+                && !value.isBlank()) {
+            return value;
         }
-        
-        // 2. Header x-trace-id
-        String header = request.getHeader("x-trace-id");
-        if (header != null && !header.isEmpty()) {
+
+        String header = request.getHeader("X-Trace-ID");
+
+        if (header != null && !header.isBlank()) {
             return header;
         }
-        
-        // 3. Header traceparent (W3C Trace Context)
+
         header = request.getHeader("traceparent");
-        if (header != null && !header.isEmpty()) {
+
+        if (header != null && !header.isBlank()) {
             return header;
         }
-        
-        // 4. Gerar novo
+
         return UUID.randomUUID().toString();
     }
-    
+
     /**
-     * Valida se request está autenticado
-     * 
-     * @return true se account ID foi encontrado
+     * Indica se existe identidade autenticada no request.
      */
     public static boolean isAuthenticated() {
         return getAccountId().isPresent();
     }
-    
+
     /**
-     * Obtém account ID ou lança exceção
-     * 
-     * @return account ID
-     * @throws UnauthorizedException se não autenticado
+     * Obtém Account ID ou lança UnauthorizedException.
      */
     public static String requireAccountId() {
         return getAccountId()
-            .orElseThrow(() -> new UnauthorizedException("Account ID não encontrado. Autenticação obrigatória."));
+            .orElseThrow(() ->
+                new UnauthorizedException(
+                    "Account ID não encontrado. Autenticação obrigatória."
+                )
+            );
     }
-    
+
     /**
-     * Obtém HttpServletRequest do contexto da thread
+     * Obtém HttpServletRequest da thread atual.
      */
     private static HttpServletRequest getRequest() {
-        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        
+        ServletRequestAttributes attributes =
+            (ServletRequestAttributes)
+                RequestContextHolder.getRequestAttributes();
+
         if (attributes == null) {
-            throw new IllegalStateException("ServletRequestAttributes não encontrado. Contexto fora de request.");
+            throw new IllegalStateException(
+                "ServletRequestAttributes não encontrado. Contexto fora de request."
+            );
         }
-        
+
         return attributes.getRequest();
     }
-    
+
     /**
-     * Exceção de autorização
+     * Exceção para requisições sem identidade autenticada.
      */
     public static class UnauthorizedException extends RuntimeException {
+
         public UnauthorizedException(String message) {
             super(message);
         }

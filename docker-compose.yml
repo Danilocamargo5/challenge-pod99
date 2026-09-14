@@ -1,10 +1,12 @@
 services:
+
   # ==============================================================================
   # DynamoDB Local
   # ==============================================================================
   dynamodb-local:
     image: amazon/dynamodb-local:latest
     container_name: dynamodb-local
+
     ports:
       - "8000:8000"
 
@@ -22,6 +24,7 @@ services:
       timeout: 3s
       retries: 3
 
+
   # ==============================================================================
   # LocalStack
   # ==============================================================================
@@ -33,7 +36,7 @@ services:
       - "4566:4566"
 
     extra_hosts:
-    - "host.docker.internal:host-gateway"
+      - "host.docker.internal:host-gateway"
 
     # Permite que o LocalStack acesse o Docker Engine
     # para executar as Lambdas.
@@ -41,6 +44,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
     environment:
+
       # Serviços AWS utilizados pelo projeto
       - SERVICES=apigateway,events,sqs,dynamodb,logs,iam,lambda
 
@@ -57,8 +61,12 @@ services:
       # Tempo máximo para inicialização do ambiente Lambda
       - LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT=60
 
-      # Reutiliza o container da Lambda entre invocações
+      # Reutiliza container Lambda entre invocações
       - LAMBDA_EXECUTOR=docker-reuse
+
+      # Permite que Lambdas acessem o Spring Boot
+      # rodando no host/Codespace.
+      - LAMBDA_DOCKER_FLAGS=--add-host host.docker.internal:host-gateway
 
     hostname: localstack
 
@@ -72,8 +80,50 @@ services:
         ]
       interval: 5s
       timeout: 3s
-      retries: 3
 
+      # LocalStack pode demorar no primeiro boot.
+      retries: 12
+      start_period: 60s
+
+
+  # ==============================================================================
+  # API Gateway Simulator
+  # ==============================================================================
+  api-gateway-simulator:
+    build:
+      context: ./infra/api-gateway-simulator
+
+    container_name: api-gateway-simulator
+
+    ports:
+      - "8081:8081"
+
+    environment:
+
+      # LocalStack dentro da rede Docker
+      - LOCALSTACK_URL=http://localstack:4566
+
+      # Spring Boot rodando no host/Codespace
+      - BACKEND_URL=http://host.docker.internal:8080
+
+      # Região AWS
+      - AWS_REGION=us-east-1
+
+      # Lambda Authorizer criada via Terraform
+      - LAMBDA_AUTHORIZER_NAME=pod99-lambda-authorizer
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Só inicia depois que o LocalStack estiver saudável.
+    depends_on:
+      localstack:
+        condition: service_healthy
+
+
+# ==============================================================================
+# Docker Network
+# ==============================================================================
 networks:
   default:
     name: pod99-network
