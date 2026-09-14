@@ -13,8 +13,10 @@ import java.io.IOException;
 
 /**
  * Filter que wrappa o HttpServletRequest com ContentCachingRequestWrapper
- * Permite que o interceptor leia o body SEM consumir o InputStream
- * Assim o Spring consegue desserializar o @RequestBody normalmente
+ * Permite que MÚLTIPLOS componentes leiam o body sem consumi-lo
+ * 
+ * ⚠️ NÃO leia o stream aqui! ContentCachingRequestWrapper cacheia automaticamente
+ * quando alguém lê via getInputStream() ou getReader()
  */
 @Slf4j
 @Component
@@ -24,18 +26,14 @@ public class ContentCachingFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, 
                                    FilterChain filterChain) throws ServletException, IOException {
         
-        // Wrappa com ContentCachingRequestWrapper pra permitir múltiplas leituras
+        // Envolve com ContentCachingRequestWrapper
+        // Isso permite que MÚLTIPLOS leitores acessem o body
         ContentCachingRequestWrapper wrappedRequest = new ContentCachingRequestWrapper(request);
         
-        // ⚠️ IMPORTANTE: Ler o stream COMPLETAMENTE para popular o cache
-        // ContentCachingRequestWrapper só cacheia o que é lido via getInputStream()
-        if ("POST".equalsIgnoreCase(wrappedRequest.getMethod()) || 
-            "PUT".equalsIgnoreCase(wrappedRequest.getMethod())) {
-            byte[] body = wrappedRequest.getInputStream().readAllBytes();
-            log.debug("📦 Body cached in filter for method: {} | {} bytes", 
-                wrappedRequest.getMethod(), body.length);
-        }
+        log.debug("📦 ContentCachingRequestWrapper installed for method: {}", wrappedRequest.getMethod());
         
+        // Passa o request envolto pra resto da chain
+        // O Spring e o Interceptor lerão do cache automaticamente
         filterChain.doFilter(wrappedRequest, response);
     }
 }
