@@ -328,3 +328,67 @@ class AuthorizeTransactionUseCaseTest {
             .releaseLocks(acquiredLocks);
     }
 }
+
+    @Test
+    @DisplayName("🔐 Deve validar formato de Account ID")
+    void testInvalidAccountIdFormat() {
+        // Arrange
+        String idContrato = "CONTA-001";
+        String idContaInvalido = "";  // Vazio
+        String idempotencyKey = "key-invalid";
+        
+        AuthorizeTransactionRequest request = AuthorizeTransactionRequest.builder()
+            .idConta(idContaInvalido)
+            .valor(new BigDecimal("100.00"))
+            .moeda("BRL")
+            .tipoOperacao("DEBITO")
+            .build();
+        
+        // Act & Assert
+        assertThrows(IllegalArgumentException.class,
+            () -> useCase.execute(idContrato, request, idempotencyKey));
+    }
+    
+    @Test
+    @DisplayName("🔐 Deve validar formato de Contract ID")
+    void testInvalidContractIdFormat() {
+        // Arrange
+        String idContratoinvalido = "";  // Vazio
+        String idConta = "ACC-001";
+        String idempotencyKey = "key-invalid";
+        
+        AuthorizeTransactionRequest request = AuthorizeTransactionRequest.builder()
+            .idConta(idConta)
+            .valor(new BigDecimal("100.00"))
+            .moeda("BRL")
+            .tipoOperacao("DEBITO")
+            .build();
+        
+        // Act & Assert
+        assertThrows(IllegalArgumentException.class,
+            () -> useCase.execute(idContratoinvalido, request, idempotencyKey));
+    }
+    
+    @Test
+    @DisplayName("💰 Deve validar valor da transação")
+    void testInvalidTransactionAmount() {
+        // Arrange
+        String idContrato = "CONTA-001";
+        String idConta = "ACC-001";
+        String idempotencyKey = "key-amount";
+        
+        AuthorizeTransactionRequest request = AuthorizeTransactionRequest.builder()
+            .idConta(idConta)
+            .valor(new BigDecimal("-100.00"))  // Negativo
+            .moeda("BRL")
+            .tipoOperacao("DEBITO")
+            .build();
+        
+        List<String> acquiredLocks = List.of(idConta, idContrato);
+        when(lockService.acquireTransactionLocks(idConta, idContrato))
+            .thenReturn(acquiredLocks);
+        
+        // Act & Assert - deve rejeitar valor negativo
+        assertThrows(IllegalArgumentException.class,
+            () -> useCase.execute(idContrato, request, idempotencyKey));
+    }
