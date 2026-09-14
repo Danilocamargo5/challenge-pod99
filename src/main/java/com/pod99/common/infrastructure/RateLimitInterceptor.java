@@ -40,12 +40,17 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             // Extrair id_conta da requisição
             // Ex: POST /v1/contratos/{idContrato}/autorizacoes
             String requestBody = getRequestBody(request);
+            log.debug("📋 Request body: {}", requestBody);
+            
             String accountId = extractAccountId(requestBody, request);
+            log.info("🔍 Extracted accountId: {}", accountId);
             
             if (accountId != null && !accountId.isEmpty()) {
                 // Verificar rate limit
                 rateLimitService.checkRateLimit(accountId, defaultLimitPerSecond);
                 log.debug("✅ Rate limit check passed for account: {}", accountId);
+            } else {
+                log.warn("⚠️ Could not extract accountId from request - skipping rate limit check");
             }
             
             return true;
