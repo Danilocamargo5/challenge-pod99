@@ -27,6 +27,14 @@ public class ContentCachingFilter extends OncePerRequestFilter {
         // Wrappa com ContentCachingRequestWrapper pra permitir múltiplas leituras
         ContentCachingRequestWrapper wrappedRequest = new ContentCachingRequestWrapper(request);
         
+        // ⚠️ IMPORTANTE: Forçar leitura do body AQUI para que o cache seja populado
+        // Sem isso, quando o Interceptor tenta ler, o buffer ainda está vazio
+        if ("POST".equalsIgnoreCase(wrappedRequest.getMethod()) || 
+            "PUT".equalsIgnoreCase(wrappedRequest.getMethod())) {
+            wrappedRequest.getContentAsByteArray();  // Força leitura e cache
+            log.debug("📦 Body cached in filter for method: {}", wrappedRequest.getMethod());
+        }
+        
         filterChain.doFilter(wrappedRequest, response);
     }
 }
