@@ -18,6 +18,9 @@ echo "🏗️ Aplicando infraestrutura Terraform..."
   terraform apply -auto-approve
 )
 
+echo "🔌 Configurando EventBridge → SQS Target..."
+./scripts/setup-eventbridge-sqs.sh
+
 echo "🌐 Iniciando API Gateway Simulator..."
 docker compose up -d api-gateway-simulator
 

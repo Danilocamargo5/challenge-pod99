@@ -238,38 +238,37 @@ Simulador em **Python/FastAPI** que replica o comportamento do AWS API Gateway c
 
 ## ✅ Validar EventBridge → SQS
 
-Para confirmar que o fluxo de eventos está funcionando:
+O **EventBridge → SQS Target é configurado automaticamente** pelo script `setup-eventbridge-sqs.sh` que é executado quando você roda `./scripts/start-local.sh`.
+
+**Se precisar reconfigurar manualmente:**
 
 ```bash
-# Terminal 1: Iniciar stack
-./scripts/start-local.sh
-
-# Terminal 2: Rodar Spring Boot
-mvn spring-boot:run
-
-# Terminal 3: Validar EventBridge → SQS
-./scripts/validate-eventbridge-sqs.sh
+./scripts/setup-eventbridge-sqs.sh
 ```
 
-**O que o script faz:**
-1. ✅ Verifica se SQS queue existe
-2. ✅ Conta mensagens na fila (ANTES)
-3. ✅ Envia requisição de autorização (gera evento)
-4. ✅ Aguarda processamento (3s)
-5. ✅ Conta mensagens na fila (DEPOIS)
-6. ✅ Lê a mensagem da fila para confirmar
-
-**Esperado:**
-```
-Mensagens (ANTES): 0
-Mensagens (DEPOIS): 1
-✅ EventBridge → SQS FUNCIONANDO!
+**Quando você fazer uma transação:**
+```bash
+curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer jwt-ACC-001" \
+  -H "Idempotency-Key: test-$(date +%s%N)" \
+  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 ```
 
-Se falhar, significa:
-- ❌ EventBridge Rule não foi criada
-- ❌ Target (SQS) não está associado
-- ❌ Evento não foi publicado
+**Nos LOGS do Spring Boot você verá:**
+```
+📡 Evento publicado (CloudEvents válido): type=TransacaoAutorizada
+📨 Recebido evento SQS
+💰 Processando transação: id=..., valor=100.00
+✅ Evento processado com sucesso
+```
+
+**Fluxo completo:**
+1. ✅ EventBridge publica evento
+2. ✅ SQS recebe mensagem (configurado por setup-eventbridge-sqs.sh)
+3. ✅ Spring consome via @SqsListener
+4. ✅ AccountingEventListener processa contabilização
+5. ✅ Retorna 201 ao cliente
 
 ---
 
