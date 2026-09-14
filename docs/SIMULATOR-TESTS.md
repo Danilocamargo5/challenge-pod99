@@ -6,6 +6,9 @@ Todos os testes abaixo devem ser executados com o Simulator rodando na porta **8
 ```bash
 ./scripts/start-local.sh
 mvn spring-boot:run  # Em outro terminal
+
+# Instalar jq (se não tiver)
+sudo apt-get install jq
 ```
 
 ---
@@ -17,11 +20,11 @@ Autorização válida, valor dentro do limite, primeiro acesso.
 **Esperado:** `201 Created` com body contendo ID da autorização e saldo reservado
 
 ```bash
-curl -i -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
+curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-ACC-001" \
   -H "Idempotency-Key: teste-1" \
-  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}'
+  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 ```
 
 ---
@@ -33,11 +36,11 @@ Mesma `Idempotency-Key` deve retornar exatamente o mesmo resultado.
 **Esperado:** `201 Created` com **mesmo ID de autorização** que o teste anterior
 
 ```bash
-curl -i -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
+curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-ACC-001" \
   -H "Idempotency-Key: teste-1" \
-  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}'
+  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 ```
 
 ---
@@ -49,11 +52,11 @@ Lambda Authorizer rejeita token inválido.
 **Esperado:** `401 Unauthorized`
 
 ```bash
-curl -i -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
+curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-INVALIDO" \
   -H "Idempotency-Key: teste-token-invalido" \
-  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}'
+  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 ```
 
 ---
@@ -65,10 +68,10 @@ Header obrigatório não foi enviado.
 **Esperado:** `422 Unprocessable Entity`
 
 ```bash
-curl -i -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
+curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: teste-sem-auth" \
-  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}'
+  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 ```
 
 ---
@@ -80,11 +83,11 @@ Valor solicitado (60000) > limite disponível (51000).
 **Esperado:** `402 Payment Required`
 
 ```bash
-curl -i -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
+curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-ACC-001" \
   -H "Idempotency-Key: teste-saldo-insuficiente" \
-  -d '{"idConta":"ACC-001","valor":60000.00,"moeda":"BRL","tipoOperacao":"DEBITO"}'
+  -d '{"idConta":"ACC-001","valor":60000.00,"moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 ```
 
 ---
@@ -97,18 +100,18 @@ Mesma requisição (sem `Idempotency-Key` idêntica) em menos de 1 segundo.
 
 ```bash
 # Primeira requisição
-curl -i -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
+curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-ACC-001" \
   -H "Idempotency-Key: teste-duplicada" \
-  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}'
+  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 
 # Segunda requisição IDÊNTICA em menos de 1 segundo
-curl -i -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
+curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-ACC-001" \
   -H "Idempotency-Key: teste-duplicada" \
-  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}'
+  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 ```
 
 ---
@@ -121,11 +124,12 @@ curl -i -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
 
 ```bash
 for i in {1..15}; do
+  echo "Requisição $i:"
   curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer jwt-ACC-001" \
     -H "Idempotency-Key: teste-rate-limit-$i" \
-    -d '{"idConta":"ACC-001","valor":10.00,"moeda":"BRL","tipoOperacao":"DEBITO"}' | grep -o "HTTP/1.1 [0-9]*"
+    -d '{"idConta":"ACC-001","valor":10.00,"moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 done
 ```
 
@@ -138,11 +142,11 @@ Contrato `CONTA-999` não existe (seed data cria apenas CONTA-001, 002, 003).
 **Esperado:** `422 Unprocessable Entity`
 
 ```bash
-curl -i -X POST http://localhost:8081/v1/contratos/CONTA-999/autorizacoes \
+curl -s -X POST http://localhost:8081/v1/contratos/CONTA-999/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-ACC-001" \
   -H "Idempotency-Key: teste-contrato-invalido" \
-  -d '{"idConta":"ACC-001","valor":100.00","moeda":"BRL","tipoOperacao":"DEBITO"}'
+  -d '{"idConta":"ACC-001","valor":100.00","moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 ```
 
 ---
@@ -154,10 +158,10 @@ Header obrigatório não foi enviado.
 **Esperado:** `422 Unprocessable Entity`
 
 ```bash
-curl -i -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
+curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-ACC-001" \
-  -d '{"idConta":"ACC-001","valor":100.00","moeda":"BRL","tipoOperacao":"DEBITO"}'
+  -d '{"idConta":"ACC-001","valor":100.00","moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 ```
 
 ---
@@ -170,25 +174,25 @@ Mesmo account pode autorizar transações em contratos diferentes.
 
 ```bash
 # Contrato 001
-curl -i -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
+curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-ACC-001" \
   -H "Idempotency-Key: teste-contrato-1" \
-  -d '{"idConta":"ACC-001","valor":100.00","moeda":"BRL","tipoOperacao":"DEBITO"}'
+  -d '{"idConta":"ACC-001","valor":100.00","moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 
 # Contrato 002
-curl -i -X POST http://localhost:8081/v1/contratos/CONTA-002/autorizacoes \
+curl -s -X POST http://localhost:8081/v1/contratos/CONTA-002/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-ACC-001" \
   -H "Idempotency-Key: teste-contrato-2" \
-  -d '{"idConta":"ACC-001","valor":100.00","moeda":"BRL","tipoOperacao":"DEBITO"}'
+  -d '{"idConta":"ACC-001","valor":100.00","moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 
 # Contrato 003
-curl -i -X POST http://localhost:8081/v1/contratos/CONTA-003/autorizacoes \
+curl -s -X POST http://localhost:8081/v1/contratos/CONTA-003/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-ACC-001" \
   -H "Idempotency-Key: teste-contrato-3" \
-  -d '{"idConta":"ACC-001","valor":100.00","moeda":"BRL","tipoOperacao":"DEBITO"}'
+  -d '{"idConta":"ACC-001","valor":100.00","moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
 ```
 
 ---
@@ -236,3 +240,4 @@ curl http://localhost:8080/actuator/health
 - Rate limit: **10 requisições/minuto** (configurável em `application.yml`)
 - Todos os testes usam **conta ACC-001** com contrato ACC-001
 - Seed data cria 3 contratos: CONTA-001, CONTA-002, CONTA-003
+
