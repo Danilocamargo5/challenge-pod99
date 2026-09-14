@@ -23,9 +23,11 @@ public class AccountingEventListener {
     @SqsListener("pod99-accounting-queue.fifo")
     public void handleTransacaoAutorizada(String message) {
         try {
-            log.info("═══════════════════════════════════════════");
-            log.info("📨 RECEBIDO EVENTO SQS - Tamanho: {} bytes", message.length());
-            log.info("═══════════════════════════════════════════");
+            // 📥 LOG DE ENTRADA
+            log.info("═══════════════════════════════════════════════════════════════");
+            log.info("🔵 [ACCOUNTING] ENTRADA - Recebido evento de SQS");
+            log.info("   Tamanho da mensagem: {} bytes", message.length());
+            log.info("═══════════════════════════════════════════════════════════════");
             
             // EventBridge envolve o evento em um wrapper com "detail"
             com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(message);
@@ -35,7 +37,11 @@ public class AccountingEventListener {
             
             TransacaoAutorizadaEvent event = objectMapper.readValue(detailJson, TransacaoAutorizadaEvent.class);
             
-            log.info("💰 Processando transação: id={}, valor={}", event.getIdAutorizacao(), event.getValor());
+            log.info("📩 Evento decodificado com sucesso");
+            log.info("   ID Autorização: {} | Event ID: {}", 
+                event.getIdAutorizacao(), event.getEventId());
+            log.info("   Valor: {} | Tipo Operação: {}", 
+                event.getValor(), event.getTipoOperacao());
             
             AccountingEntry entry = AccountingEntry.builder()
                 .eventId(event.getEventId())
@@ -48,10 +54,17 @@ public class AccountingEventListener {
             
             recordUseCase.record(entry);
             
-            log.info("✅ Evento processado com sucesso");
+            // 📤 LOG DE SAÍDA
+            log.info("═══════════════════════════════════════════════════════════════");
+            log.info("🟢 [ACCOUNTING] SAÍDA - Contabilização salva com sucesso");
+            log.info("   ID Autorização: {} | Valor: {}", 
+                event.getIdAutorizacao(), event.getValor());
+            log.info("   Tipo Lançamento: DEBIT | Contrato: {}", event.getIdContrato());
+            log.info("   Status: RECORDED | Event ID: {}", event.getEventId());
+            log.info("═══════════════════════════════════════════════════════════════");
             
         } catch (Exception e) {
-            log.error("❌ Erro ao processar evento", e);
+            log.error("❌ [ACCOUNTING] ERRO - Falha ao processar contabilização", e);
         }
     }
 }

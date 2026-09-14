@@ -50,7 +50,6 @@ public class AuthorizationController {
         
         // 🔐 Validar autenticação
         String accountId = RequestContext.requireAccountId();
-        log.info("✅ Usuário autenticado: {}", accountId);
         
         // 📍 Correlation ID e Trace ID
         String correlationId = RequestContext.getCorrelationId();
@@ -62,14 +61,29 @@ public class AuthorizationController {
         MDC.put("X-Trace-ID", traceId);
         MDC.put("X-Account-Id", accountId);
         
-        log.info("📡 POST /v1/contratos/{}/autorizacoes | key={} | conta={} | account={}", 
-            idContrato, idempotencyKey, request.getIdConta(), accountId);
+        // 📥 LOG DE ENTRADA
+        log.info("═══════════════════════════════════════════════════════════════");
+        log.info("🔵 [AUTHORIZATION] ENTRADA - Recebendo requisição de autorização");
+        log.info("   Conta: {} | Contrato: {} | Valor: {} {}", 
+            request.getIdConta(), idContrato, request.getValor(), request.getMoeda());
+        log.info("   Operação: {} | Idempotency-Key: {}", 
+            request.getTipoOperacao(), idempotencyKey);
+        log.info("   Account: {} | Trace: {}", accountId, traceId);
+        log.info("═══════════════════════════════════════════════════════════════");
         
         try {
             AuthorizeTransactionResponse response = authorizeUseCase.execute(
                 idContrato, request, idempotencyKey);
             
-            log.info("✅ Autorização aprovada: {}", response.getIdAutorizacao());
+            // 📤 LOG DE SAÍDA
+            log.info("═══════════════════════════════════════════════════════════════");
+            log.info("🟢 [AUTHORIZATION] SAÍDA - Autorização aprovada com sucesso");
+            log.info("   ID Autorização: {} | Valor: {} {}", 
+                response.getIdAutorizacao(), request.getValor(), request.getMoeda());
+            log.info("   Status: {} | Saldo Reservado: {}", 
+                response.getStatus(), response.getSaldoReservado());
+            log.info("   Repetição: {} | Trace: {}", response.isRepetition(), traceId);
+            log.info("═══════════════════════════════════════════════════════════════");
             
             // ℹ️ Status 200 se for repetição (idempotência), 201 se for novo
             HttpStatus status = response.isRepetition() ? HttpStatus.OK : HttpStatus.CREATED;

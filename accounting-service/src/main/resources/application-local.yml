@@ -1,4 +1,8 @@
 spring:
+  application:
+    name: accounting-service
+  profiles:
+    active: local
   cloud:
     aws:
       region:
@@ -6,6 +10,16 @@ spring:
       sqs:
         endpoint: http://localhost:4566
         region: us-east-1
+
+server:
+  port: 8081
+  shutdown: graceful
+
+logging:
+  level:
+    root: INFO
+    com.pod99: DEBUG
+    io.awspring.cloud.sqs: DEBUG
 
 aws:
   region: us-east-1

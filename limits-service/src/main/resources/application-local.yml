@@ -1,4 +1,8 @@
 spring:
+  application:
+    name: limits-service
+  profiles:
+    active: local
   cloud:
     aws:
       region:
@@ -6,6 +10,15 @@ spring:
       sqs:
         endpoint: http://localhost:4566
         region: us-east-1
+
+server:
+  port: 8082
+  shutdown: graceful
+
+logging:
+  level:
+    root: INFO
+    com.pod99: DEBUG
 
 aws:
   region: us-east-1
