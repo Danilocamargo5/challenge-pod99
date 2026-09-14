@@ -61,11 +61,11 @@ curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
 
 ---
 
-## ❌ 4. SEM AUTHORIZATION HEADER - 422 Unprocessable Entity
+## ❌ 4. SEM AUTHORIZATION HEADER - 401 Unauthorized
 
-Header obrigatório não foi enviado.
+Header obrigatório não foi enviado. API Gateway Simulator retorna 401.
 
-**Esperado:** `422 Unprocessable Entity`
+**Esperado:** `401 Unauthorized` com mensagem "Missing Authorization header"
 
 ```bash
 curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
@@ -116,22 +116,28 @@ curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
 
 ---
 
-## ⚡ 7. RATE LIMIT - 429 Too Many Requests
+## ⚡ 7. RACE CONDITION COM PARALELISMO - 409 Conflict
 
-15 requisições em sequência (limite configurado em `application.yml`).
+20 requisições **simultâneas** com Idempotency-Keys diferentes.
 
-**Esperado:** Primeiras requisições `201`, depois `429 Too Many Requests`
+**Configuração:** Rate limit em `100 TPS` (veja `application-local.yml`)
+
+**Esperado:** Algumas requisições `201 Created`, outras `409 Conflict` (race condition)
 
 ```bash
-for i in {1..15}; do
-  echo "Requisição $i:"
+for i in {1..20}; do
   curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer jwt-ACC-001" \
-    -H "Idempotency-Key: teste-rate-limit-$i" \
-    -d '{"idConta":"ACC-001","valor":10.00,"moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
+    -H "Idempotency-Key: rate-limit-paralelo-$i" \
+    -d '{"idConta":"ACC-001","valor":5.00,"moeda":"BRL","tipoOperacao":"DEBITO"}' | jq . &
 done
+wait
 ```
+
+**Resultado esperado:**
+- ~4 requisições: `201 Created` (adquiriram locks)
+- ~16 requisições: `409 Conflict` (falha de lock após retries)
 
 ---
 
@@ -204,10 +210,10 @@ curl -s -X POST http://localhost:8081/v1/contratos/CONTA-003/autorizacoes \
 | 1. Sucesso | 201 | Primeiro acesso válido |
 | 2. Idempotência | 201 | Mesma chave retorna mesmo resultado |
 | 3. Token Inválido | 401 | Lambda Authorizer rejeita |
-| 4. Sem Auth Header | 422 | Header obrigatório falta |
+| 4. Sem Auth Header | 401 | Header obrigatório falta |
 | 5. Saldo Insuficiente | 402 | Valor > limite |
-| 6. Transação Duplicada | 409 | Mesma transação < 1s |
-| 7. Rate Limit | 429 | Limite de requisições excedido |
+| 6. Transação Duplicada | 201 | Idempotência com mesma chave |
+| 7. Race Condition (Paralelo) | 409 | 20 requisições simultâneas |
 | 8. Contrato Inválido | 422 | Contrato não existe |
 | 9. Sem Idempotency-Key | 422 | Header obrigatório falta |
 | 10. Múltiplos Contratos | 201 | Mesmo account, contratos diferentes |
@@ -237,7 +243,9 @@ curl http://localhost:8080/actuator/health
 ## 📝 Notas
 
 - Limite por contrato: **51000.00**
-- Rate limit: **10 requisições/minuto** (configurável em `application.yml`)
+- Rate limit: **100 TPS** (Transações por segundo, configurável em `application-local.yml`)
 - Todos os testes usam **conta ACC-001** com contrato ACC-001
 - Seed data cria 3 contratos: CONTA-001, CONTA-002, CONTA-003
+- API Gateway Simulator retorna **401** (não 422) quando Authorization header falta
+- **409 Conflict** é gerado por race condition quando múltiplas requisições tentam adquirir locks simultaneamente
 
