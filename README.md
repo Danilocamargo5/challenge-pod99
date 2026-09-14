@@ -17,10 +17,14 @@ Arquitetar uma plataforma transacional que:
 
 ## Stack Tecnológico
 
-- **Linguagem**: Java 17
+- **Linguagem**: Java 21
 - **Framework**: Spring Boot 3.1.5
 - **Banco de Dados**: DynamoDB (AWS Local)
 - **Message Broker**: EventBridge + SQS (LocalStack)
+- **API Gateway**: 
+  - **Local**: Simulator em Python/FastAPI (porta 8081)
+  - **AWS**: AWS API Gateway oficial (com Lambda Authorizer)
+- **Autorização**: Lambda Authorizer (JWT validation)
 - **Orquestração**: Docker Compose
 - **Logging**: Logback + Logstash (JSON estruturado)
 - **Build**: Maven 3.9
@@ -40,6 +44,12 @@ Arquitetar uma plataforma transacional que:
 ```
 POST /v1/contratos/{id}/autorizacoes
   ↓
+[API Gateway] (LocalStack com Simulator)
+  ↓
+[Lambda Authorizer] Valida JWT → retorna accountId
+  ↓
+[Spring Boot] (localhost:8080) com X-Account-Id header
+  ↓
 [LockService] Adquire locks (5 retry × exponential backoff)
   ↓
 [AuthorizeUseCase] Valida limite → Reserva → Persiste
@@ -50,6 +60,23 @@ EventBridge Rule → SQS → AccountingEventListener (async)
   ↓
 HTTP 201 Created {id_autorizacao, saldo_reservado, correlation_id}
 ```
+
+---
+
+## 🔐 Lambda Authorizer
+
+LocalStack **não implementa API Gateway com Authorizer automaticamente**, então criamos um **Simulator em Python/FastAPI** que:
+
+1. ✅ Recebe requisições na porta **8081**
+2. ✅ Valida JWT chamando Lambda Authorizer (LocalStack)
+3. ✅ Extrai `accountId` da resposta do Lambda
+4. ✅ Passa como `X-Account-Id` header para Spring Boot
+5. ✅ Retorna resposta do Spring ao cliente
+
+**Por que não é AWS API Gateway oficialmente?**
+- LocalStack não simula API Gateway com Authorizer completo
+- Simulator garante comportamento equivalente localmente
+- **Em produção (AWS real)**: Usa AWS API Gateway oficial com Lambda Authorizer nativo
 
 ### Concorrência
 
@@ -184,6 +211,28 @@ docker-compose down -v
                     (AccountingEventListener
                       registra lançamento)
 ```
+
+---
+
+## 🛠️ API Gateway Simulator (Local Only)
+
+Simulador em **Python/FastAPI** que replica o comportamento do AWS API Gateway com Lambda Authorizer.
+
+**Localização:** `/infra/api-gateway-simulator/`
+
+**O que faz:**
+1. Recebe POST em `http://localhost:8081/v1/contratos/{id}/autorizacoes`
+2. Valida `Authorization` header (obrigatório)
+3. Invoca Lambda Authorizer (LocalStack)
+4. Extrai `accountId` da resposta
+5. Forward request para Spring Boot (8080) com `X-Account-Id` header
+6. Retorna resposta ao cliente
+
+**Porta:** 8081 (não conflita com Spring 8080)
+
+**Logs:** `docker logs api-gateway-simulator`
+
+**Nota:** Este componente é **apenas local**. Em produção (AWS), use AWS API Gateway oficial.
 
 ---
 
@@ -445,7 +494,26 @@ Por que X ao invés de Y?
 
 ---
 
-## Troubleshooting
+## 🌍 Deploy em AWS
+
+**A estrutura acima foi desenvolvida para rodar tanto local quanto em AWS:**
+
+### Local (Development)
+- API Gateway Simulator (Python/FastAPI) → simula comportamento do AWS API Gateway
+- Lambda Authorizer (LocalStack) → simula Lambda real
+- DynamoDB (DynamoDB Local) → compatível com AWS DynamoDB
+
+### AWS (Production)
+- AWS API Gateway oficial com Lambda Authorizer nativo
+- AWS Lambda (substituir Simulator com função real)
+- AWS DynamoDB (sem alterações)
+- AWS EventBridge + SQS (sem alterações)
+
+**Mínimas mudanças necessárias:**
+1. Substituir URL do Simulator pela URL do API Gateway oficial
+2. Criar Lambda Authorizer em AWS (mesmo código que LocalStack)
+3. Apontar Spring Boot para DynamoDB produção
+4. Tudo mais funciona igual (mesmos códigos, mesma arquitetura)
 
 | Problema | Solução |
 |----------|---------|
