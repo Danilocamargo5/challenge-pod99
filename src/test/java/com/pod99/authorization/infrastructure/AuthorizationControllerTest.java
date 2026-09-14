@@ -129,7 +129,7 @@ class AuthorizationControllerTest {
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isConflict())  // 409
-            .andExpect(jsonPath("$.status").value(409))
+            .andExpect(jsonPath("$.status").value(409));
         
         verify(authorizeUseCase, times(1))
             .execute(anyString(), any(), anyString());
