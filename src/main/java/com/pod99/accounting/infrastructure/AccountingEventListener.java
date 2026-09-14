@@ -20,7 +20,9 @@ public class AccountingEventListener {
     private final RecordTransactionUseCase recordUseCase;
     private final ObjectMapper objectMapper;
     
-    @SqsListener("pod99-accounting-queue")
+    // @SqsListener("pod99-accounting-queue")  ← DESABILITADO PARA TESTE
+    // Quando desabilitado, a fila acumula mensagens (não há consumidor)
+    // Isso valida se EventBridge → SQS está funcionando
     public void handleTransacaoAutorizada(String message) {
         try {
             log.info("📨 Recebido evento SQS");
