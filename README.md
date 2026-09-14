@@ -236,6 +236,43 @@ Simulador em **Python/FastAPI** que replica o comportamento do AWS API Gateway c
 
 ---
 
+## ✅ Validar EventBridge → SQS
+
+Para confirmar que o fluxo de eventos está funcionando:
+
+```bash
+# Terminal 1: Iniciar stack
+./scripts/start-local.sh
+
+# Terminal 2: Rodar Spring Boot
+mvn spring-boot:run
+
+# Terminal 3: Validar EventBridge → SQS
+./scripts/validate-eventbridge-sqs.sh
+```
+
+**O que o script faz:**
+1. ✅ Verifica se SQS queue existe
+2. ✅ Conta mensagens na fila (ANTES)
+3. ✅ Envia requisição de autorização (gera evento)
+4. ✅ Aguarda processamento (3s)
+5. ✅ Conta mensagens na fila (DEPOIS)
+6. ✅ Lê a mensagem da fila para confirmar
+
+**Esperado:**
+```
+Mensagens (ANTES): 0
+Mensagens (DEPOIS): 1
+✅ EventBridge → SQS FUNCIONANDO!
+```
+
+Se falhar, significa:
+- ❌ EventBridge Rule não foi criada
+- ❌ Target (SQS) não está associado
+- ❌ Evento não foi publicado
+
+---
+
 ### Troubleshooting
 
 | Problema | Solução |
