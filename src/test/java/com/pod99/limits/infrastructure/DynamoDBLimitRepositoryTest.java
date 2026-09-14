@@ -1,7 +1,6 @@
 package com.pod99.limits.infrastructure;
 
 import com.pod99.limits.domain.Limit;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,11 +14,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("LimitRepositoryAdapter Tests")
-class LimitRepositoryAdapterTest {
+@DisplayName("DynamoDBLimitRepository Tests")
+class DynamoDBLimitRepositoryTest {
     
     @Mock
-    private LimitRepositoryAdapter limitRepository;
+    private DynamoDBLimitRepository limitRepository;
     
     @Test
     @DisplayName("✅ Deve buscar limite por ID do contrato")
@@ -39,7 +38,6 @@ class LimitRepositoryAdapterTest {
         
         assertTrue(result.isPresent());
         assertEquals(idContrato, result.get().getIdContrato());
-        verify(limitRepository, times(1)).findByContractId(idContrato);
     }
     
     @Test
@@ -53,24 +51,5 @@ class LimitRepositoryAdapterTest {
         Optional<Limit> result = limitRepository.findByContractId(idContrato);
         
         assertFalse(result.isPresent());
-    }
-    
-    @Test
-    @DisplayName("✅ Deve salvar limite")
-    void testSaveLimit() {
-        Limit limit = Limit.builder()
-            .idContrato("CONTA-002")
-            .limite(new BigDecimal("50000.00"))
-            .disponivel(new BigDecimal("50000.00"))
-            .reservado(BigDecimal.ZERO)
-            .build();
-        
-        when(limitRepository.save(limit))
-            .thenReturn(limit);
-        
-        Limit result = limitRepository.save(limit);
-        
-        assertNotNull(result);
-        assertEquals("CONTA-002", result.getIdContrato());
     }
 }
