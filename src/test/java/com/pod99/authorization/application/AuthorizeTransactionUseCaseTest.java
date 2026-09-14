@@ -327,14 +327,12 @@ class AuthorizeTransactionUseCaseTest {
         verify(lockService, times(1))
             .releaseLocks(acquiredLocks);
     }
-}
-
+    
     @Test
     @DisplayName("🔐 Deve validar formato de Account ID")
     void testInvalidAccountIdFormat() {
-        // Arrange
         String idContrato = "CONTA-001";
-        String idContaInvalido = "";  // Vazio
+        String idContaInvalido = "";
         String idempotencyKey = "key-invalid";
         
         AuthorizeTransactionRequest request = AuthorizeTransactionRequest.builder()
@@ -344,7 +342,6 @@ class AuthorizeTransactionUseCaseTest {
             .tipoOperacao("DEBITO")
             .build();
         
-        // Act & Assert
         assertThrows(IllegalArgumentException.class,
             () -> useCase.execute(idContrato, request, idempotencyKey));
     }
@@ -352,8 +349,7 @@ class AuthorizeTransactionUseCaseTest {
     @Test
     @DisplayName("🔐 Deve validar formato de Contract ID")
     void testInvalidContractIdFormat() {
-        // Arrange
-        String idContratoinvalido = "";  // Vazio
+        String idContratoinvalido = "";
         String idConta = "ACC-001";
         String idempotencyKey = "key-invalid";
         
@@ -364,7 +360,6 @@ class AuthorizeTransactionUseCaseTest {
             .tipoOperacao("DEBITO")
             .build();
         
-        // Act & Assert
         assertThrows(IllegalArgumentException.class,
             () -> useCase.execute(idContratoinvalido, request, idempotencyKey));
     }
@@ -372,14 +367,13 @@ class AuthorizeTransactionUseCaseTest {
     @Test
     @DisplayName("💰 Deve validar valor da transação")
     void testInvalidTransactionAmount() {
-        // Arrange
         String idContrato = "CONTA-001";
         String idConta = "ACC-001";
         String idempotencyKey = "key-amount";
         
         AuthorizeTransactionRequest request = AuthorizeTransactionRequest.builder()
             .idConta(idConta)
-            .valor(new BigDecimal("-100.00"))  // Negativo
+            .valor(new BigDecimal("-100.00"))
             .moeda("BRL")
             .tipoOperacao("DEBITO")
             .build();
@@ -388,7 +382,7 @@ class AuthorizeTransactionUseCaseTest {
         when(lockService.acquireTransactionLocks(idConta, idContrato))
             .thenReturn(acquiredLocks);
         
-        // Act & Assert - deve rejeitar valor negativo
         assertThrows(IllegalArgumentException.class,
             () -> useCase.execute(idContrato, request, idempotencyKey));
     }
+}
