@@ -159,15 +159,27 @@ curl -s -X POST http://localhost:8081/v1/contratos/CONTA-999/autorizacoes \
 
 ## 📋 9. SEM IDEMPOTENCY-KEY - 422 Unprocessable Entity
 
-Header obrigatório não foi enviado.
+Header obrigatório não foi enviado. API Gateway Simulator retorna erro formatado em RFC 7807.
 
-**Esperado:** `422 Unprocessable Entity`
+**Esperado:** `422 Unprocessable Entity` com detalhes estruturados
 
 ```bash
 curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-ACC-001" \
-  -d '{"idConta":"ACC-001","valor":100.00","moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
+  -d '{"idConta":"ACC-001","valor":100.00,"moeda":"BRL","tipoOperacao":"DEBITO"}' | jq .
+```
+
+**Resposta esperada:**
+```json
+{
+  "type": "https://api.pod99.com/errors/validation-error",
+  "title": "Validation Error",
+  "status": 422,
+  "detail": "Missing required header: Idempotency-Key",
+  "instance": "/v1/contratos/CONTA-001/autorizacoes",
+  "timestamp": "2026-09-14T16:36:57.753386Z"
+}
 ```
 
 ---
@@ -240,12 +252,28 @@ curl http://localhost:8080/actuator/health
 
 ---
 
+## ✅ Status dos Testes
+
+**Todos os 10 testes passaram com sucesso!** 🎉
+
+- ✅ Teste 1: Sucesso - 201 Created
+- ✅ Teste 2: Idempotência - 201 (mesmo ID)
+- ✅ Teste 3: Token Inválido - 401 Unauthorized
+- ✅ Teste 4: Sem Auth Header - 401 Unauthorized
+- ✅ Teste 5: Saldo Insuficiente - 402 Payment Required
+- ✅ Teste 6: Race Condition - 409 Conflict
+- ✅ Teste 7: Requisições Paralelas - Mix de 201 e 409
+- ✅ Teste 8: Contrato Inválido - 422 Unprocessable Entity
+- ✅ Teste 9: Sem Idempotency-Key - 422 Unprocessable Entity (RFC 7807)
+- ✅ Teste 10: Múltiplos Contratos - 201 x3
+
 ## 📝 Notas
 
 - Limite por contrato: **51000.00**
-- Rate limit: **100 TPS** (Transações por segundo, configurável em `application-local.yml`)
+- Rate limit: **5 TPS** (configurável em `application-local.yml`) para facilitar testes
 - Todos os testes usam **conta ACC-001** com contrato ACC-001
 - Seed data cria 3 contratos: CONTA-001, CONTA-002, CONTA-003
-- API Gateway Simulator retorna **401** (não 422) quando Authorization header falta
+- API Gateway Simulator retorna **401** quando Authorization header falta
 - **409 Conflict** é gerado por race condition quando múltiplas requisições tentam adquirir locks simultaneamente
+- Erros são formatados em **RFC 7807** (Problem Details)
 
