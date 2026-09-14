@@ -25,7 +25,13 @@ public class AccountingEventListener {
         try {
             log.info("📨 Recebido evento SQS");
             
-            TransacaoAutorizadaEvent event = objectMapper.readValue(message, TransacaoAutorizadaEvent.class);
+            // EventBridge envolve o evento em um wrapper com "detail"
+            com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(message);
+            String detailJson = root.has("detail") 
+                ? objectMapper.writeValueAsString(root.get("detail"))
+                : message;  // Se não tiver "detail", trata como direto
+            
+            TransacaoAutorizadaEvent event = objectMapper.readValue(detailJson, TransacaoAutorizadaEvent.class);
             
             log.info("💰 Processando transação: id={}, valor={}", event.getIdAutorizacao(), event.getValor());
             
