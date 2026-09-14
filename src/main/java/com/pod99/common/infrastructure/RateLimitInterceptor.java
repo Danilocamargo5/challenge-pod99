@@ -8,13 +8,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
-import org.springframework.web.util.ContentCachingRequestWrapper;
 
 /**
- * Interceptor que aplica Rate Limiting por conta (id_conta)
- * 
- * Extrai o id_conta do JSON body e valida contra rate limit
- * PULA requisições internas (Lambda Authorizer, health checks, etc)
+ * Interceptor que aplica Rate Limiting por conta
+ * Extrai o accountId do header X-Account-Id (setado pelo Lambda Authorizer)
  */
 @Slf4j
 @Component
@@ -34,7 +31,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             throws Exception {
         
         if (!rateLimitEnabled) {
-            return true;  // Skip rate limiting se desabilitado
+            return true;
         }
         
         // Pular requisições internas (Lambda Authorizer, health checks)
@@ -47,19 +44,16 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         }
         
         try {
-            // Extrair id_conta da requisição
-            String requestBody = getRequestBody(request);
-            log.debug("📋 Request body: {} bytes", requestBody != null ? requestBody.length() : 0);
-            
-            String accountId = extractAccountId(requestBody, request);
-            log.info("🔍 Extracted accountId: {} from path: {}", accountId, path);
+            // Extrair accountId do header X-Account-Id (setado pelo Lambda Authorizer)
+            String accountId = request.getHeader("X-Account-Id");
+            log.info("🔍 Extracted accountId from X-Account-Id header: {}", accountId);
             
             if (accountId != null && !accountId.isEmpty()) {
                 // Verificar rate limit
                 rateLimitService.checkRateLimit(accountId, defaultLimitPerSecond);
                 log.debug("✅ Rate limit check passed for account: {}", accountId);
             } else {
-                log.warn("⚠️ Could not extract accountId from request - skipping rate limit check");
+                log.warn("⚠️ X-Account-Id header not found - skipping rate limit check");
             }
             
             return true;
@@ -74,47 +68,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
                 e.getMessage(),
                 e.getRetryAfterSeconds()
             ));
-            log.warn("⚠️ Rate limit exceeded: {}", e.getMessage());
+            log.warn("⚠️ Rate limit exceeded for account: {}", e.getMessage());
             return false;
         }
-    }
-    
-    /**
-     * Extrai id_conta do request (JSON body ou path params)
-     */
-    private String extractAccountId(String requestBody, HttpServletRequest request) {
-        try {
-            // Tentar extrair do JSON body
-            if (requestBody != null && !requestBody.isEmpty() && requestBody.contains("\"idConta\"")) {
-                int startIndex = requestBody.indexOf("\"idConta\":");
-                int endIndex = requestBody.indexOf("\"", startIndex + 11);
-                if (endIndex > startIndex) {
-                    String accountId = requestBody.substring(startIndex + 11, endIndex)
-                        .replace("\"", "").trim();
-                    log.debug("✅ Extracted accountId from body: {}", accountId);
-                    return accountId;
-                }
-            }
-        } catch (Exception e) {
-            log.debug("Não foi possível extrair account_id do body: {}", e.getMessage());
-        }
-        
-        return null;
-    }
-    
-    /**
-     * Helper para ler body da requisição
-     */
-    private String getRequestBody(HttpServletRequest request) {
-        try {
-            if (request instanceof ContentCachingRequestWrapper) {
-                ContentCachingRequestWrapper wrapper = (ContentCachingRequestWrapper) request;
-                byte[] buf = wrapper.getContentAsByteArray();
-                return new String(buf);
-            }
-        } catch (Exception e) {
-            log.debug("Error reading request body: {}", e.getMessage());
-        }
-        return "";
     }
 }
