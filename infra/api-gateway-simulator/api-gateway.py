@@ -1,9 +1,10 @@
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
 import boto3
 import httpx
 import json
 import os
+from datetime import datetime
 
 app = FastAPI(
     title="POD99 API Gateway Simulator",
@@ -83,12 +84,25 @@ async def authorize_transaction(
     id_contrato: str,
     request: Request,
     authorization: str = Header(None, alias="Authorization"),
-    idempotency_key: str = Header(..., alias="Idempotency-Key")
+    idempotency_key: str = Header(None, alias="Idempotency-Key")
 ):
     if not authorization:
         raise HTTPException(
             status_code=401,
             detail="Missing Authorization header"
+        )
+    
+    if not idempotency_key:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "type": "https://api.pod99.com/errors/validation-error",
+                "title": "Validation Error",
+                "status": 422,
+                "detail": "Missing required header: Idempotency-Key",
+                "instance": f"/v1/contratos/{id_contrato}/autorizacoes",
+                "timestamp": datetime.utcnow().isoformat() + "Z"
+            }
         )
 
     method_arn = (
