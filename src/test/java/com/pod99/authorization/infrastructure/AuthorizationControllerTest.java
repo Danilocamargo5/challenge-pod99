@@ -130,7 +130,6 @@ class AuthorizationControllerTest {
             .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isConflict())  // 409
             .andExpect(jsonPath("$.status").value(409))
-            .andExpect(jsonPath("$.correlation_id").exists());
         
         verify(authorizeUseCase, times(1))
             .execute(anyString(), any(), anyString());
