@@ -82,9 +82,15 @@ def extract_account_id(authorizer_response: dict) -> str:
 async def authorize_transaction(
     id_contrato: str,
     request: Request,
-    authorization: str = Header(..., alias="Authorization"),
+    authorization: str = Header(None, alias="Authorization"),
     idempotency_key: str = Header(..., alias="Idempotency-Key")
 ):
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing Authorization header"
+        )
+
     method_arn = (
         f"arn:aws:execute-api:{AWS_REGION}:000000000000:"
         f"local/local/POST/v1/contratos/{id_contrato}/autorizacoes"
@@ -126,4 +132,4 @@ async def authorize_transaction(
             "content-type",
             "application/json"
         )
-    )   
+    )
