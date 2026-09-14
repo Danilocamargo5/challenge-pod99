@@ -70,79 +70,153 @@ HTTP 201 Created {id_autorizacao, saldo_reservado, correlation_id}
 ### Pré-requisitos
 
 - Docker & Docker Compose
-- Java 17
-- Maven 3.9 (ou usar wrapper: `./mvnw`)
+- Java 17+
+- Maven 3.9+ (ou usar wrapper: `./mvnw`)
 
-### Local (Recomendado)
+### Local (Recomendado) - Forma Rápida
 
-**1. Subir infraestrutura**
-
-```bash
-docker-compose up
-```
-
-Aguarde logs:
-```
-✅ DynamoDB Local pronto
-✅ LocalStack pronto
-✅ Pod99 app pronto (localhost:8080)
-```
-
-**2. Em outro terminal, testar a API**
+**1. Iniciar tudo com um comando**
 
 ```bash
-# Autorizar uma transação
-curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
-  -H "Idempotency-Key: $(uuidgen)" \
+./scripts/start-local.sh
+```
+
+Este script:
+- 🐳 Sobe LocalStack, DynamoDB, API Gateway Simulator
+- 🔧 Configura rede Docker (resolve LocalStack ↔ Simulator)
+- ⚙️ Aplica infraestrutura Terraform
+- 🏃 Inicia Spring Boot em `http://localhost:8080`
+
+**2. Aguardar inicialização (~20s)**
+
+Abrir novo terminal quando ver:
+```
+✅ POD99 Authorization Platform started successfully
+```
+
+**3. Testar a API via API Gateway Simulator**
+
+```bash
+# POST /v1/contratos/CONTA-001/autorizacoes
+curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer jwt-ACC-001" \
+  -H "Idempotency-Key: teste-1" \
   -d '{
-    "id_conta": "ACC-001",
+    "idConta": "ACC-001",
     "valor": 100.00,
     "moeda": "BRL",
-    "tipo_operacao": "DEBITO"
-  }'
+    "tipoOperacao": "DEBITO"
+  }' | jq .
 
-# Resposta esperada
-HTTP 201 Created
+# Resposta esperada (HTTP 201)
 {
-  "id_autorizacao": "AUTH-550e8400-e29b-41d4-a716-446655440000",
-  "saldo_reservado": 99900.00,
+  "id_autorizacao": "550e8400-e29b-41d4-a716-446655440000",
+  "saldo_reservado": 49900.00,
   "correlation_id": "trace-550e8400-e29b-41d4-a716-446655440001",
-  "status": "APPROVED"
+  "status": "APPROVED",
+  "timestamp": "2026-09-14T16:27:50.084487335Z"
 }
 ```
 
-**3. Ver logs estruturados**
+**4. Ver todos os testes validados**
+
+Consulte: **[docs/SIMULATOR-TESTS.md](docs/SIMULATOR-TESTS.md)**
+
+**Status dos Testes:** ✅ **10/10 PASSANDO**
+- ✅ Autorização bem-sucedida (201)
+- ✅ Idempotência (mesmo ID em replicatas)
+- ✅ Token inválido (401)
+- ✅ Sem Authorization header (401)
+- ✅ Saldo insuficiente (402)
+- ✅ Race condition (409 Conflict)
+- ✅ Rate Limit (429 - 5 TPS)
+- ✅ Contrato inválido (422)
+- ✅ Sem Idempotency-Key (422 RFC 7807)
+- ✅ Múltiplos contratos (201 x3)
+
+**5. (Opcional) Testar Load - 5.000 TPS**
 
 ```bash
-docker-compose logs -f pod99-app
-
-# Output esperado
-✅ Autorização aprovada: id=AUTH-xyz
-💰 Lançamento contábil registrado: evento=xyz, valor=100.00
+./scripts/load-test.sh
 ```
 
-**4. Testar idempotência**
+Simula 5.000 transações/segundo por 60 segundos.
+
+**6. Parar infraestrutura**
 
 ```bash
-# Mesma requisição (mesmo Idempotency-Key)
-curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
-  -H "Idempotency-Key: uuid-1" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id_conta": "ACC-001",
-    "valor": 100.00,
-    "moeda": "BRL",
-    "tipo_operacao": "DEBITO"
-  }'
-
-# HTTP 200 OK (retorna do cache, não 201)
+docker-compose down -v
 ```
 
-**5. Parar infraestrutura**
+---
+
+### Arquitetura em Tempo de Execução
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ CLIENTE (curl, Postman, navegador)                          │
+│ localhost:8081 (API Gateway Simulator - Python FastAPI)     │
+└────────────────────┬────────────────────────────────────────┘
+                     │ HTTP/POST
+                     ↓
+┌─────────────────────────────────────────────────────────────┐
+│ [1] Lambda Authorizer (LocalStack)                          │
+│     - Valida JWT token                                       │
+│     - Retorna accountId                                      │
+└────────────────────┬────────────────────────────────────────┘
+                     │ X-Account-Id header
+                     ↓
+┌─────────────────────────────────────────────────────────────┐
+│ [2] Spring Boot API (localhost:8080)                        │
+│     - RateLimitInterceptor (5 TPS)                          │
+│     - LockService (5 retry × exponential backoff)           │
+│     - AuthorizeUseCase (valida limite → reserva → persiste) │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+        ┌────────────┴────────────┐
+        ↓                         ↓
+    [3] DynamoDB            [4] EventBridge
+    (Locks, Limits,         (Publica evento)
+     Authorizations)            │
+                                ↓
+                             [5] SQS
+                    (AccountingEventListener
+                      registra lançamento)
+```
+
+---
+
+### Troubleshooting
+
+| Problema | Solução |
+|----------|---------|
+| `docker-compose: command not found` | Instalar [Docker Desktop](https://www.docker.com/products/docker-desktop) |
+| `Port 8081 already in use` | `lsof -i :8081` → `kill -9 <PID>` |
+| `Lambda Authorizer fails` | Esperar LocalStack pronto (~5s) |
+| `Rate limit 429` | Esperado! Limite é 5 TPS. Ver `application-local.yml` |
+| `Testes falham no Codespace` | Rodar `./scripts/start-local.sh` primeiro |
+
+---
+
+### Modo Manual (Alternativa - Não recomendado)
+
+Se preferir iniciar cada componente manualmente:
 
 ```bash
-docker-compose down
+# Terminal 1: Infraestrutura
+docker-compose up localstack dynamodb-local api-gateway-simulator
+
+# Terminal 2: Terraform
+cd infra/terraform
+terraform init
+terraform apply -var-file=local.tfvars
+
+# Terminal 3: Spring Boot
+mvn clean compile spring-boot:run
+
+# Terminal 4: Testes
+curl http://localhost:8081/v1/contratos/CONTA-001/autorizacoes ...
 ```
 
 ---
