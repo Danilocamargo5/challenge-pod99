@@ -13,7 +13,8 @@ import org.springframework.web.util.ContentCachingRequestWrapper;
 /**
  * Interceptor que aplica Rate Limiting por conta (id_conta)
  * 
- * Extrai o id_conta do path params e valida contra rate limit
+ * Extrai o id_conta do JSON body e valida contra rate limit
+ * PULA requisições internas (Lambda Authorizer, health checks, etc)
  */
 @Slf4j
 @Component
@@ -36,21 +37,22 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             return true;  // Skip rate limiting se desabilitado
         }
         
+        // Pular requisições internas (Lambda Authorizer, health checks)
+        String path = request.getRequestURI();
+        if (path.equals("/v1/contratos/authorize") || 
+            path.startsWith("/actuator") ||
+            path.startsWith("/health")) {
+            log.debug("⏭️ Skipping rate limit for internal path: {}", path);
+            return true;
+        }
+        
         try {
-            // DEBUG: Log tipo de request
-            log.info("🔎 Request type: {} | Is ContentCachingRequestWrapper: {}", 
-                request.getClass().getSimpleName(),
-                request instanceof ContentCachingRequestWrapper);
-            
             // Extrair id_conta da requisição
-            // Ex: POST /v1/contratos/{idContrato}/autorizacoes
             String requestBody = getRequestBody(request);
-            log.debug("📋 Request body length: {} | content: {}", 
-                requestBody != null ? requestBody.length() : 0, 
-                requestBody);
+            log.debug("📋 Request body: {} bytes", requestBody != null ? requestBody.length() : 0);
             
             String accountId = extractAccountId(requestBody, request);
-            log.info("🔍 Extracted accountId: {}", accountId);
+            log.info("🔍 Extracted accountId: {} from path: {}", accountId, path);
             
             if (accountId != null && !accountId.isEmpty()) {
                 // Verificar rate limit
@@ -87,50 +89,32 @@ public class RateLimitInterceptor implements HandlerInterceptor {
                 int startIndex = requestBody.indexOf("\"idConta\":");
                 int endIndex = requestBody.indexOf("\"", startIndex + 11);
                 if (endIndex > startIndex) {
-                    return requestBody.substring(startIndex + 11, endIndex)
+                    String accountId = requestBody.substring(startIndex + 11, endIndex)
                         .replace("\"", "").trim();
-                }
-            }
-            
-            // Tentar extrair de path params (se houver)
-            String pathInfo = request.getPathInfo();
-            if (pathInfo != null && pathInfo.contains("contas/")) {
-                String[] parts = pathInfo.split("/");
-                for (int i = 0; i < parts.length - 1; i++) {
-                    if ("contas".equals(parts[i])) {
-                        return parts[i + 1];
-                    }
+                    log.debug("✅ Extracted accountId from body: {}", accountId);
+                    return accountId;
                 }
             }
         } catch (Exception e) {
-            log.debug("Não foi possível extrair account_id: {}", e.getMessage());
+            log.debug("Não foi possível extrair account_id do body: {}", e.getMessage());
         }
         
         return null;
     }
     
     /**
-     * Helper para ler body da requisição (sem consumir o stream)
-     * Usa ContentCachingRequestWrapper pra permitir múltiplas leituras
+     * Helper para ler body da requisição
      */
     private String getRequestBody(HttpServletRequest request) {
         try {
-            // Se é ContentCachingRequestWrapper, usa cache direto
             if (request instanceof ContentCachingRequestWrapper) {
                 ContentCachingRequestWrapper wrapper = (ContentCachingRequestWrapper) request;
                 byte[] buf = wrapper.getContentAsByteArray();
-                log.debug("✅ Got content from ContentCachingRequestWrapper cache: {} bytes", buf.length);
                 return new String(buf);
-            } else {
-                log.warn("⚠️ Request is NOT ContentCachingRequestWrapper! Type: {}", request.getClass().getName());
             }
-            // Fallback para InputStream (não deve acontecer com o filter ativo)
-            byte[] bytes = request.getInputStream().readAllBytes();
-            log.debug("⚠️ Reading directly from InputStream: {} bytes", bytes.length);
-            return new String(bytes);
         } catch (Exception e) {
-            log.error("❌ Error reading request body: {}", e.getMessage());
-            return "";
+            log.debug("Error reading request body: {}", e.getMessage());
         }
+        return "";
     }
 }
