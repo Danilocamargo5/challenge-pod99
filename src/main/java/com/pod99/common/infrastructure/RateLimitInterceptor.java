@@ -37,10 +37,17 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         }
         
         try {
+            // DEBUG: Log tipo de request
+            log.info("🔎 Request type: {} | Is ContentCachingRequestWrapper: {}", 
+                request.getClass().getSimpleName(),
+                request instanceof ContentCachingRequestWrapper);
+            
             // Extrair id_conta da requisição
             // Ex: POST /v1/contratos/{idContrato}/autorizacoes
             String requestBody = getRequestBody(request);
-            log.debug("📋 Request body: {}", requestBody);
+            log.debug("📋 Request body length: {} | content: {}", 
+                requestBody != null ? requestBody.length() : 0, 
+                requestBody);
             
             String accountId = extractAccountId(requestBody, request);
             log.info("🔍 Extracted accountId: {}", accountId);
@@ -76,7 +83,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private String extractAccountId(String requestBody, HttpServletRequest request) {
         try {
             // Tentar extrair do JSON body
-            if (requestBody != null && requestBody.contains("\"idConta\"")) {
+            if (requestBody != null && !requestBody.isEmpty() && requestBody.contains("\"idConta\"")) {
                 int startIndex = requestBody.indexOf("\"idConta\":");
                 int endIndex = requestBody.indexOf("\"", startIndex + 11);
                 if (endIndex > startIndex) {
@@ -109,15 +116,20 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private String getRequestBody(HttpServletRequest request) {
         try {
             // Se é ContentCachingRequestWrapper, usa cache direto
-            if (request instanceof org.springframework.web.util.ContentCachingRequestWrapper) {
-                org.springframework.web.util.ContentCachingRequestWrapper wrapper = 
-                    (org.springframework.web.util.ContentCachingRequestWrapper) request;
+            if (request instanceof ContentCachingRequestWrapper) {
+                ContentCachingRequestWrapper wrapper = (ContentCachingRequestWrapper) request;
                 byte[] buf = wrapper.getContentAsByteArray();
+                log.debug("✅ Got content from ContentCachingRequestWrapper cache: {} bytes", buf.length);
                 return new String(buf);
+            } else {
+                log.warn("⚠️ Request is NOT ContentCachingRequestWrapper! Type: {}", request.getClass().getName());
             }
             // Fallback para InputStream (não deve acontecer com o filter ativo)
-            return new String(request.getInputStream().readAllBytes());
+            byte[] bytes = request.getInputStream().readAllBytes();
+            log.debug("⚠️ Reading directly from InputStream: {} bytes", bytes.length);
+            return new String(bytes);
         } catch (Exception e) {
+            log.error("❌ Error reading request body: {}", e.getMessage());
             return "";
         }
     }
