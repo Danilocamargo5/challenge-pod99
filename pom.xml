@@ -52,12 +52,6 @@
 
             <dependency>
                 <groupId>software.amazon.awssdk</groupId>
-                <artifactId>events</artifactId>
-                <version>${aws-java-sdk.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>software.amazon.awssdk</groupId>
                 <artifactId>sqs</artifactId>
                 <version>${aws-java-sdk.version}</version>
             </dependency>
