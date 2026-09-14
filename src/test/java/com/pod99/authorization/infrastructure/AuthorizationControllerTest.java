@@ -89,6 +89,7 @@ class AuthorizationControllerTest {
         // Act & Assert
         mockMvc.perform(post("/v1/contratos/{idContrato}/autorizacoes", idContrato)
             .header("Idempotency-Key", idempotencyKey)
+            .header("X-Account-Id", idConta)
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isCreated())
@@ -124,6 +125,7 @@ class AuthorizationControllerTest {
         // Act & Assert
         mockMvc.perform(post("/v1/contratos/{idContrato}/autorizacoes", idContrato)
             .header("Idempotency-Key", idempotencyKey)
+            .header("X-Account-Id", idConta)
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isConflict())  // 409
@@ -156,6 +158,7 @@ class AuthorizationControllerTest {
         // Act & Assert
         mockMvc.perform(post("/v1/contratos/{idContrato}/autorizacoes", idContrato)
             .header("Idempotency-Key", idempotencyKey)
+            .header("X-Account-Id", idConta)
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().is(402))  // PAYMENT_REQUIRED
@@ -184,6 +187,7 @@ class AuthorizationControllerTest {
         // Act & Assert
         mockMvc.perform(post("/v1/contratos/{idContrato}/autorizacoes", idContrato)
             .header("Idempotency-Key", idempotencyKey)
+            .header("X-Account-Id", idConta)
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isUnprocessableEntity())  // 422
@@ -212,6 +216,7 @@ class AuthorizationControllerTest {
         // Act & Assert
         mockMvc.perform(post("/v1/contratos/{idContrato}/autorizacoes", idContrato)
             .header("Idempotency-Key", idempotencyKey)
+            .header("X-Account-Id", idConta)
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isInternalServerError())  // 500
@@ -246,6 +251,7 @@ class AuthorizationControllerTest {
         // Act & Assert
         mockMvc.perform(post("/v1/contratos/{idContrato}/autorizacoes", idContrato)
             .header("Idempotency-Key", idempotencyKey)
+            .header("X-Account-Id", idConta)
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isCreated())

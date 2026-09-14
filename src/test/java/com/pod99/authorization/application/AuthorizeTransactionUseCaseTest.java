@@ -240,7 +240,7 @@ class AuthorizeTransactionUseCaseTest {
     @DisplayName("❌ Deve rejeitar contrato inválido (mas liberar locks)")
     void testNonExistentContractWithLockRelease() {
         // Arrange
-        String idContrato = "CONTA-INVALID";
+        String idContrato = "CONTA-999";
         String idConta = "ACC-001";
         String idempotencyKey = "key-789";
         
