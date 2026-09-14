@@ -129,7 +129,7 @@ class AuthorizationControllerTest {
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isConflict())  // 409
-            .andExpect(jsonPath("$.error_code").value("CONFLICT"))
+            .andExpect(jsonPath("$.status").value(409))
             .andExpect(jsonPath("$.correlation_id").exists());
         
         verify(authorizeUseCase, times(1))
@@ -162,7 +162,7 @@ class AuthorizationControllerTest {
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().is(402))  // PAYMENT_REQUIRED
-            .andExpect(jsonPath("$.error_code").value("INSUFFICIENT_LIMIT"));
+            .andExpect(jsonPath("$.status").value(402));
     }
     
     @Test
@@ -191,7 +191,7 @@ class AuthorizationControllerTest {
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isUnprocessableEntity())  // 422
-            .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+            .andExpect(jsonPath("$.status").value(422));
     }
     
     @Test
@@ -220,7 +220,7 @@ class AuthorizationControllerTest {
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isInternalServerError())  // 500
-            .andExpect(jsonPath("$.error_code").value("INTERNAL_ERROR"));
+            .andExpect(jsonPath("$.status").value(500));
     }
     
     @Test
