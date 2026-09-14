@@ -23,7 +23,9 @@ public class AccountingEventListener {
     @SqsListener("pod99-accounting-queue.fifo")
     public void handleTransacaoAutorizada(String message) {
         try {
-            log.info("📨 Recebido evento SQS");
+            log.info("═══════════════════════════════════════════");
+            log.info("📨 RECEBIDO EVENTO SQS - Tamanho: {} bytes", message.length());
+            log.info("═══════════════════════════════════════════");
             
             // EventBridge envolve o evento em um wrapper com "detail"
             com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(message);
