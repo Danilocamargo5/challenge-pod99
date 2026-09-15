@@ -13,7 +13,7 @@ public class TransactionListener {
     
     private final ObjectMapper objectMapper;
     
-    @SqsListener("pod99-transactions.fifo")
+    @SqsListener("pod99-accounting-queue.fifo")
     public void handleTransactionAuthorized(String message) {
         
         log.info("┌─────────────────────────────────────────────────────────────────┐");
