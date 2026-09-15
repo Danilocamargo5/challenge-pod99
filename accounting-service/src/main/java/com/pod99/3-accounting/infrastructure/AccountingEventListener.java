@@ -3,7 +3,6 @@ package com.pod99.accounting.infrastructure;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pod99.accounting.application.RecordTransactionUseCase;
 import com.pod99.accounting.domain.AccountingEntry;
-import com.pod99.authorization.domain.TransacaoAutorizadaEvent;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -29,27 +29,27 @@ public class AccountingEventListener {
             log.info("   Tamanho da mensagem: {} bytes", message.length());
             log.info("═══════════════════════════════════════════════════════════════");
             
-            // EventBridge envolve o evento em um wrapper com "detail"
+            // Parse genérico (sem depender de authorization-service)
             com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(message);
-            String detailJson = root.has("detail") 
-                ? objectMapper.writeValueAsString(root.get("detail"))
-                : message;  // Se não tiver "detail", trata como direto
+            com.fasterxml.jackson.databind.JsonNode detailNode = root.has("detail") ? root.get("detail") : root;
             
-            TransacaoAutorizadaEvent event = objectMapper.readValue(detailJson, TransacaoAutorizadaEvent.class);
+            // Extrair campos genéricos
+            String idAutorizacao = detailNode.has("idAutorizacao") ? detailNode.get("idAutorizacao").asText() : "UNKNOWN";
+            String idContrato = detailNode.has("idContrato") ? detailNode.get("idContrato").asText() : "UNKNOWN";
+            double valor = detailNode.has("valor") ? detailNode.get("valor").asDouble() : 0.0;
+            String eventId = detailNode.has("eventId") ? detailNode.get("eventId").asText() : "UNKNOWN";
             
             log.info("📩 Evento decodificado com sucesso");
-            log.info("   ID Autorização: {} | Event ID: {}", 
-                event.getIdAutorizacao(), event.getEventId());
-            log.info("   Valor: {} | Tipo Operação: {}", 
-                event.getValor(), event.getTipoOperacao());
+            log.info("   ID Autorização: {} | Event ID: {}", idAutorizacao, eventId);
+            log.info("   Valor: {} | Contrato: {}", valor, idContrato);
             
             AccountingEntry entry = AccountingEntry.builder()
-                .eventId(event.getEventId())
-                .idAutorizacao(event.getIdAutorizacao())
-                .idContrato(event.getIdContrato())
-                .valor(event.getValor())
+                .eventId(eventId)
+                .idAutorizacao(idAutorizacao)
+                .idContrato(idContrato)
+                .valor(BigDecimal.valueOf(valor))
                 .tipoLancamento("DEBIT")
-                .dataOperacao(event.getOccurredAt().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime())
+                .dataOperacao(LocalDateTime.now())
                 .build();
             
             recordUseCase.record(entry);
@@ -57,10 +57,9 @@ public class AccountingEventListener {
             // 📤 LOG DE SAÍDA
             log.info("═══════════════════════════════════════════════════════════════");
             log.info("🟢 [ACCOUNTING] SAÍDA - Contabilização salva com sucesso");
-            log.info("   ID Autorização: {} | Valor: {}", 
-                event.getIdAutorizacao(), event.getValor());
-            log.info("   Tipo Lançamento: DEBIT | Contrato: {}", event.getIdContrato());
-            log.info("   Status: RECORDED | Event ID: {}", event.getEventId());
+            log.info("   ID Autorização: {} | Valor: {}", idAutorizacao, valor);
+            log.info("   Tipo Lançamento: DEBIT | Contrato: {}", idContrato);
+            log.info("   Status: RECORDED | Event ID: {}", eventId);
             log.info("═══════════════════════════════════════════════════════════════");
             
         } catch (Exception e) {
