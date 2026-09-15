@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -15,12 +16,14 @@ import java.util.UUID;
 /**
  * Use Case para Autorizar Transações
  * 
- * RESPONSABILIDADES:
- * 1. Orquestrar lógica de negócio
- * 2. Gerenciar seção crítica (locks)
- * 3. Garantir idempotência
- * 4. Publicar eventos de domínio
- * 5. Chamar Limits Service via HTTP (TODO)
+ * FLUXO:
+ * 1. Adquirir locks (seção crítica)
+ * 2. Chamar GET /limits-service/v1/limites/{idContrato}
+ * 3. Validar se valor <= limite.disponivel
+ * 4. Se OK: Chamar PUT /limits-service/v1/limites/{idContrato} para reservar
+ * 5. Se OK: Criar autorização
+ * 6. Se OK: Publicar evento no EventBridge
+ * 7. Liberar locks
  */
 @Slf4j
 @Service
@@ -30,6 +33,7 @@ public class AuthorizeTransactionUseCase {
     private final AuthorizationRepository authRepository;
     private final EventBridgePublisher eventPublisher;
     private final LockService lockService;
+    private final RestTemplate restTemplate;
     
     public AuthorizeTransactionResponse execute(
             String idContrato,
@@ -39,31 +43,54 @@ public class AuthorizeTransactionUseCase {
         String correlationId = MDC.get("X-Correlation-ID");
         String traceId = MDC.get("X-Trace-ID");
         
-        log.info("🔐 Iniciando autorização: contrato={}, conta={}", 
-            idContrato, request.getIdConta());
+        log.info("🔐 Iniciando autorização: contrato={}, conta={}, valor={}", 
+            idContrato, request.getIdConta(), request.getValor());
         
         // 🔒 ADQUIRIR LOCKS (seção crítica começa aqui)
         try {
-            log.info("🔒 Adquirindo locks: conta={}, contrato={}", 
-                request.getIdConta(), idContrato);
-            
             lockService.acquireLock("AUTH:" + idContrato, 5000);
-            
             log.info("✅ Lock adquirido para contrato: {}", idContrato);
             
             // 📋 Validar entrada
             if (request.getValor() == null || request.getValor() <= 0) {
+                log.warn("❌ Valor inválido: {}", request.getValor());
                 throw new IllegalArgumentException("Valor inválido");
             }
             
-            // TODO: Chamar GET /limits-service/v1/limites/{idContrato}
-            // para validar limite disponível
+            // 1️⃣ CHAMAR LIMITS SERVICE para pegar limite
+            log.info("📞 Chamando GET /limits-service/v1/limites/{}", idContrato);
+            String limitsUrl = "http://localhost:8082/v1/limites/" + idContrato;
             
-            // TODO: Se limite insuficiente, retornar 402
+            LimitDTO limit;
+            try {
+                limit = restTemplate.getForObject(limitsUrl, LimitDTO.class);
+                log.info("✅ Limite obtido: disponível={}", limit.getDisponivel());
+            } catch (Exception e) {
+                log.error("❌ Erro ao chamar limits-service", e);
+                throw new RuntimeException("Falha ao validar limite", e);
+            }
             
-            // TODO: Reservar limite em PUT /limits-service/v1/limites/{idContrato}
+            // 2️⃣ VALIDAR LIMITE
+            if (limit.getDisponivel() < request.getValor()) {
+                log.warn("❌ Limite insuficiente: necessário={}, disponível={}", 
+                    request.getValor(), limit.getDisponivel());
+                throw new InsufficientLimitException("Limite insuficiente");
+            }
             
-            // ✅ Criar autorização
+            // 3️⃣ RESERVAR LIMITE (chamar PUT em limits-service)
+            log.info("📞 Chamando PUT /limits-service/v1/limites/{} para reservar", idContrato);
+            LimitReserveRequest reserveRequest = new LimitReserveRequest();
+            reserveRequest.setValor(request.getValor());
+            
+            try {
+                restTemplate.put(limitsUrl, reserveRequest);
+                log.info("✅ Limite reservado: valor={}", request.getValor());
+            } catch (Exception e) {
+                log.error("❌ Erro ao reservar limite", e);
+                throw new RuntimeException("Falha ao reservar limite", e);
+            }
+            
+            // 4️⃣ CRIAR AUTORIZAÇÃO
             String authId = UUID.randomUUID().toString();
             Authorization auth = Authorization.builder()
                 .id(authId)
@@ -71,30 +98,59 @@ public class AuthorizeTransactionUseCase {
                 .conta(request.getIdConta())
                 .valor(BigDecimal.valueOf(request.getValor()))
                 .status("APPROVED")
+                .correlationId(correlationId)
+                .traceId(traceId)
                 .build();
             
             authRepository.save(auth);
             log.info("✅ Autorização criada: {}", authId);
             
-            // 📤 Publicar evento
+            // 5️⃣ PUBLICAR EVENTO
             log.info("📤 Publicando evento no EventBridge");
             eventPublisher.publishEvent(null); // TODO: passar evento real
             
             return new AuthorizeTransactionResponse(
                 authId,
                 "APPROVED",
-                "Transação autorizada",
+                "Transação autorizada com sucesso",
                 authId,
                 request.getValor(),
                 false
             );
             
+        } catch (InsufficientLimitException e) {
+            log.warn("⚠️ Limite insuficiente");
+            throw e;
         } catch (Exception e) {
             log.error("❌ Erro ao autorizar transação", e);
             throw new RuntimeException("Falha na autorização", e);
         } finally {
             lockService.releaseLock("AUTH:" + idContrato);
             log.info("🔓 Lock liberado");
+        }
+    }
+    
+    // DTOs para comunicação com limits-service
+    public static class LimitDTO {
+        private String id;
+        private Double disponivel;
+        
+        public Double getDisponivel() { return disponivel; }
+        public void setDisponivel(Double disponivel) { this.disponivel = disponivel; }
+        public String getId() { return id; }
+        public void setId(String id) { this.id = id; }
+    }
+    
+    public static class LimitReserveRequest {
+        private Double valor;
+        
+        public Double getValor() { return valor; }
+        public void setValor(Double valor) { this.valor = valor; }
+    }
+    
+    public static class InsufficientLimitException extends RuntimeException {
+        public InsufficientLimitException(String message) {
+            super(message);
         }
     }
 }
