@@ -3,6 +3,7 @@ package com.pod99.authorization.application;
 import com.pod99.authorization.domain.Authorization;
 import com.pod99.authorization.domain.AuthorizationRepository;
 import com.pod99.common.exception.InsufficientLimitException;
+import com.pod99.common.exception.LockAcquisitionException;
 import com.pod99.config.EventBridgePublisher;
 import com.pod99.config.LockService;
 import lombok.RequiredArgsConstructor;
@@ -66,18 +67,18 @@ public class AuthorizeTransactionUseCase {
             Authorization existing = existingAuthorization.get();
 
             log.info(
-                "🔄 Requisição idempotente encontrada | key={} | authorizationId={}",
-                idempotencyKey,
-                existing.getIdAutorizacao()
+                    "🔄 Requisição idempotente encontrada | key={} | authorizationId={}",
+                    idempotencyKey,
+                    existing.getIdAutorizacao()
             );
 
             return new AuthorizeTransactionResponse(
-                existing.getIdAutorizacao(),
-                existing.getStatus().toString(),
-                "Transação autorizada com sucesso",
-                existing.getIdAutorizacao(),
-                existing.getSaldoReservado().doubleValue(),
-                true
+                    existing.getIdAutorizacao(),
+                    existing.getStatus().toString(),
+                    "Transação autorizada com sucesso",
+                    existing.getIdAutorizacao(),
+                    existing.getSaldoReservado().doubleValue(),
+                    true
             );
         }
 
@@ -130,15 +131,15 @@ public class AuthorizeTransactionUseCase {
                 );
 
                 log.info(
-                    "  ✅ [2/5] LIMITS SERVICE respondeu - Saldo: {}",
-                    response.getSaldoAtual()
+                        "  ✅ [2/5] LIMITS SERVICE respondeu - Saldo: {}",
+                        response.getSaldoAtual()
                 );
 
             } catch (Exception e) {
 
                 log.error(
-                    "  ❌ [2/5] Erro ao chamar LIMITS SERVICE: {}",
-                    e.getMessage()
+                        "  ❌ [2/5] Erro ao chamar LIMITS SERVICE: {}",
+                        e.getMessage()
                 );
 
                 if (e.getMessage() != null
@@ -170,20 +171,16 @@ public class AuthorizeTransactionUseCase {
             );
 
             log.info(
-                "  ➜ [3/5] 💾 Persistindo autorização - ID: {}",
-                authorization.getIdAutorizacao()
+                    "  ➜ [3/5] 💾 Persistindo autorização - ID: {}",
+                    authorization.getIdAutorizacao()
             );
 
             authorizationRepository.save(authorization);
 
-            log.info(
-                "  ✅ [3/5] Autorização persistida"
-            );
+            log.info("  ✅ [3/5] Autorização persistida");
 
             // 4 - EVENTBRIDGE
-            log.info(
-                "  ➜ [4/5] 📤 Publicando evento no EventBridge..."
-            );
+            log.info("  ➜ [4/5] 📤 Publicando evento no EventBridge...");
 
             eventPublisher.publishTransactionAuthorized(
                     authorization.getIdAutorizacao(),
@@ -200,14 +197,14 @@ public class AuthorizeTransactionUseCase {
             log.info("│ 🟢 AUTHORIZATION SERVICE - Autorização APROVADA                 │");
             log.info("├─────────────────────────────────────────────────────────────────┤");
             log.info(
-                "│ ID Autorização: {} | Status: APPROVED",
-                authorization.getIdAutorizacao()
+                    "│ ID Autorização: {} | Status: APPROVED",
+                    authorization.getIdAutorizacao()
             );
             log.info(
-                "│ Saldo Reservado: {} {} | Correlação: {}",
-                authorization.getSaldoReservado(),
-                request.getMoeda(),
-                correlationId
+                    "│ Saldo Reservado: {} {} | Correlação: {}",
+                    authorization.getSaldoReservado(),
+                    request.getMoeda(),
+                    correlationId
             );
             log.info("└─────────────────────────────────────────────────────────────────┘");
 
@@ -220,6 +217,12 @@ public class AuthorizeTransactionUseCase {
                     false
             );
 
+        } catch (LockAcquisitionException e) {
+
+            // Deve chegar ao Controller como conflito de concorrência (HTTP 409)
+            log.warn("  ⚠️ Conflito de concorrência - lock não adquirido");
+            throw e;
+
         } catch (InsufficientLimitException e) {
 
             log.warn("  ⚠️ Limite insuficiente");
@@ -228,6 +231,7 @@ public class AuthorizeTransactionUseCase {
         } catch (Exception e) {
 
             log.error("  ❌ Erro ao autorizar transação", e);
+
             throw new RuntimeException(
                     "Falha na autorização",
                     e
@@ -304,5 +308,4 @@ public class AuthorizeTransactionUseCase {
             this.reservado = reservado;
         }
     }
-
 }

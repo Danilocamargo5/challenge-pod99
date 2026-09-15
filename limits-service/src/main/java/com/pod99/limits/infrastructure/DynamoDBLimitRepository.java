@@ -40,29 +40,66 @@ public class DynamoDBLimitRepository implements LimitRepository {
     
     @Override
     public void update(Limit limit) {
-        try {
-            // Atualiza APENAS se disponivel >= 0 (Conditional Update)
-            UpdateItemRequest request = UpdateItemRequest.builder()
-                .tableName(TABLE_NAME)
-                .key(Map.of("id_contrato", AttributeValue.builder().s(limit.getIdContrato()).build()))
-                .updateExpression("SET disponivel = :disp, reservado = :res, #v = #v + :inc")
-                .expressionAttributeNames(Map.of("#v", "version"))
-                .expressionAttributeValues(Map.of(
-                    ":disp", AttributeValue.builder().n(limit.getDisponivel().toPlainString()).build(),
-                    ":res", AttributeValue.builder().n(limit.getReservado().toPlainString()).build(),
-                    ":inc", AttributeValue.builder().n("1").build(),
-                    ":zero", AttributeValue.builder().n("0").build()
-                ))
-                .conditionExpression("disponivel >= :zero")
-                .build();
-            
-            dynamoDbClient.updateItem(request);
-            log.debug("✅ Limite atualizado: {}", limit.getIdContrato());
-            
+    try {
+        UpdateItemRequest request = UpdateItemRequest.builder()
+            .tableName(TABLE_NAME)
+            .key(Map.of(
+                "id_contrato",
+                AttributeValue.builder()
+                    .s(limit.getIdContrato())
+                    .build()
+            ))
+            .updateExpression(
+                "SET disponivel = :disp, reservado = :res, #v = :newVersion"
+            )
+            .expressionAttributeNames(Map.of(
+                "#v", "version"
+            ))
+            .expressionAttributeValues(Map.of(
+                ":disp", AttributeValue.builder()
+                    .n(limit.getDisponivel().toPlainString())
+                    .build(),
+
+                ":res", AttributeValue.builder()
+                    .n(limit.getReservado().toPlainString())
+                    .build(),
+
+                ":currentVersion", AttributeValue.builder()
+                    .n(String.valueOf(limit.getVersion()))
+                    .build(),
+
+                ":newVersion", AttributeValue.builder()
+                    .n(String.valueOf(limit.getVersion() + 1))
+                    .build()
+            ))
+            .conditionExpression(
+                "attribute_not_exists(#v) OR #v = :currentVersion"
+            )
+            .build();
+
+        dynamoDbClient.updateItem(request);
+
+        limit.setVersion(limit.getVersion() + 1);
+
+        log.debug(
+            "✅ Limite atualizado: contrato={}, version={}",
+            limit.getIdContrato(),
+            limit.getVersion()
+        );
+
         } catch (ConditionalCheckFailedException e) {
-            throw new InsufficientLimitException("Limite insuficiente (race condition)");
-        }
+
+        log.warn(
+            "⚠️ Conflito de concorrência ao atualizar limite: contrato={}, version={}",
+            limit.getIdContrato(),
+            limit.getVersion()
+        );
+
+        throw new InsufficientLimitException(
+            "Conflito de concorrência ao atualizar limite"
+        );
     }
+}
     
     @Override
     public Optional<Limit> findByContractId(String idContrato) {
