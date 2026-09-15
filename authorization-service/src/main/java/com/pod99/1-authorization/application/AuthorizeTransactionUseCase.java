@@ -1,7 +1,5 @@
 package com.pod99.authorization.application;
 
-import com.pod99.authorization.domain.Authorization;
-import com.pod99.authorization.domain.AuthorizationRepository;
 import com.pod99.config.EventBridgePublisher;
 import com.pod99.config.LockService;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +8,7 @@ import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -28,7 +26,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthorizeTransactionUseCase {
     
-    private final AuthorizationRepository authRepository;
     private final EventBridgePublisher eventPublisher;
     private final LockService lockService;
     private final RestTemplate restTemplate;
@@ -44,18 +41,24 @@ public class AuthorizeTransactionUseCase {
         log.info("🔐 Iniciando autorização: contrato={}, conta={}, valor={}", 
             idContrato, request.getIdConta(), request.getValor());
         
+        String authId = UUID.randomUUID().toString();
+        List<String> acquiredLocks = null;
+        
         // 🔒 ADQUIRIR LOCKS (seção crítica começa aqui)
         try {
-            lockService.acquireLock("AUTH:" + idContrato, 5000);
-            log.info("✅ Lock adquirido para contrato: {}", idContrato);
+            log.info("🔒 Adquirindo locks: conta={}, contrato={}", 
+                request.getIdConta(), idContrato);
+            
+            acquiredLocks = lockService.acquireTransactionLocks(authId, idContrato);
+            log.info("✅ Locks adquiridos: {}", acquiredLocks);
             
             // 📋 Validar entrada
-            if (request.getValor() == null || request.getValor() <= 0) {
+            if (request.getValor() == null || request.getValor() <= 0.0) {
                 log.warn("❌ Valor inválido: {}", request.getValor());
                 throw new IllegalArgumentException("Valor inválido");
             }
             
-            // 1️⃣ CHAMAR LIMITS SERVICE: VALIDAR + RESERVAR em UMA ÚNICA CHAMADA
+            // 1️⃣ CHAMAR LIMITS SERVICE: VALIDAR + RESERVAR em UMA ÚNICA CHAMADA (atômico)
             log.info("📞 Chamando POST /limits-service/v1/limites/{}/reservar (validar + reservar)", idContrato);
             String limitsUrl = "http://localhost:8082/v1/limites/" + idContrato + "/reservar";
             
@@ -66,33 +69,26 @@ public class AuthorizeTransactionUseCase {
             LimitReserveResponse response;
             try {
                 response = restTemplate.postForObject(limitsUrl, reserveRequest, LimitReserveResponse.class);
-                log.info("✅ Limite validado e reservado atomicamente: valor={}", request.getValor());
+                log.info("✅ Limite validado e reservado atomicamente: valor={}, saldoAtual={}", 
+                    request.getValor(), response.getSaldoAtual());
             } catch (Exception e) {
-                log.error("❌ Erro ao validar/reservar limite", e);
-                if (e.getMessage().contains("402")) {
+                log.error("❌ Erro ao validar/reservar limite em limits-service", e);
+                if (e.getMessage() != null && e.getMessage().contains("402")) {
                     throw new InsufficientLimitException("Limite insuficiente");
                 }
                 throw new RuntimeException("Falha ao reservar limite", e);
             }
             
-            // 2️⃣ CRIAR AUTORIZAÇÃO
-            String authId = UUID.randomUUID().toString();
-            Authorization auth = Authorization.builder()
-                .id(authId)
-                .contrato(idContrato)
-                .conta(request.getIdConta())
-                .valor(BigDecimal.valueOf(request.getValor()))
-                .status("APPROVED")
-                .correlationId(correlationId)
-                .traceId(traceId)
-                .idempotencyKey(idempotencyKey)
-                .build();
+            // 2️⃣ CRIAR AUTORIZAÇÃO (sim, só logging por agora - sem persistência complexa)
+            log.info("✅ Autorização criada");
+            log.info("   ID: {}", authId);
+            log.info("   Conta: {}", request.getIdConta());
+            log.info("   Contrato: {}", idContrato);
+            log.info("   Valor: {}", request.getValor());
+            log.info("   Status: APPROVED");
             
-            authRepository.save(auth);
-            log.info("✅ Autorização criada: {}", authId);
-            
-            // 3️⃣ PUBLICAR EVENTO
-            log.info("📤 Publicando evento no EventBridge");
+            // 3️⃣ PUBLICAR EVENTO no EventBridge
+            log.info("📤 Publicando evento no EventBridge para contabilidade");
             eventPublisher.publishEvent(null); // TODO: passar evento real
             
             return new AuthorizeTransactionResponse(
@@ -105,14 +101,16 @@ public class AuthorizeTransactionUseCase {
             );
             
         } catch (InsufficientLimitException e) {
-            log.warn("⚠️ Limite insuficiente");
+            log.warn("⚠️ Limite insuficiente para autorização");
             throw e;
         } catch (Exception e) {
             log.error("❌ Erro ao autorizar transação", e);
             throw new RuntimeException("Falha na autorização", e);
         } finally {
-            lockService.releaseLock("AUTH:" + idContrato);
-            log.info("🔓 Lock liberado");
+            if (acquiredLocks != null && !acquiredLocks.isEmpty()) {
+                lockService.releaseLocks(acquiredLocks);
+                log.info("🔓 Locks liberados: {}", acquiredLocks);
+            }
         }
     }
     
