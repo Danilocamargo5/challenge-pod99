@@ -6,10 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-/**
- * TODO: Integrar com EventBridge real
- * Por enquanto apenas logging
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -20,8 +16,9 @@ public class EventBridgePublisher {
     public void publishEvent(DomainEvent event) {
         try {
             String detail = objectMapper.writeValueAsString(event);
-            log.info("📤 [TODO] Publicar evento no EventBridge: {}", detail);
-            // TODO: eventBridgeClient.putEvents(...);
+            log.info("📤 [EventBridge] Publicando evento: {}", event.getEventType());
+            log.info("   Conteúdo: {}", detail);
+            // TODO: Chamar eventBridgeClient.putEvents() quando aws-core estiver disponível
         } catch (Exception e) {
             log.error("❌ Erro ao publicar evento", e);
         }
