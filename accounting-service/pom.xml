@@ -50,12 +50,6 @@
             <artifactId>sqs</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>eventbridge</artifactId>
-            <version>2.21.0</version>
-        </dependency>
-
         <!-- Spring Cloud AWS SQS -->
         <dependency>
             <groupId>io.awspring.cloud</groupId>
