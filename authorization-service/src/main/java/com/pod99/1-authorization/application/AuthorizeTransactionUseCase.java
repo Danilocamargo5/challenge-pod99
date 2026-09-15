@@ -92,7 +92,13 @@ public class AuthorizeTransactionUseCase {
             
             // 3️⃣ PUBLICAR EVENTO no EventBridge
             log.info("📤 Publicando evento no EventBridge para contabilidade");
-            // eventPublisher.publish(event); // TODO: implementar depois
+            eventPublisher.publishTransactionAuthorized(
+                authId,
+                idContrato,
+                request.getIdConta(),
+                valor,
+                request.getMoeda()
+            );
             
             return new AuthorizeTransactionResponse(
                 authId,
