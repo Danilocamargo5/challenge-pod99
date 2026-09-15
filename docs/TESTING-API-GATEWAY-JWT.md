@@ -24,7 +24,7 @@ Este guia mostra como testar a API com autenticação JWT usando:
 
 ```bash
 # Terminal 1: Subir containers (LocalStack + DynamoDB)
-docker-compose up
+docker compose up
 
 # Terminal 2: Rodar app Spring Boot
 git pull origin develop
@@ -69,7 +69,7 @@ terraform apply -var-file=local.tfvars
 ### Cenário 1: SEM Token (deve retornar 401)
 
 ```bash
-curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
+curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: test-123" \
   -d '{
@@ -93,7 +93,7 @@ curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
 
 ```bash
 # Token válido: Bearer jwt-CONTA-001
-curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
+curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-CONTA-001" \
   -H "Idempotency-Key: test-456" \
@@ -118,7 +118,7 @@ curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
 
 ```bash
 # Repetir MESMA requisição com MESMO Idempotency-Key
-curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
+curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-CONTA-001" \
   -H "Idempotency-Key: test-456" \
@@ -136,7 +136,7 @@ curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
 
 ```bash
 # Token inválido: "invalid-xyz"
-curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
+curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer invalid-xyz" \
   -H "Idempotency-Key: test-789" \
@@ -202,7 +202,7 @@ curl -X POST http://localhost:4566/restapis/API_ID/stage/v1/contratos/CONTA-001/
 
 ```bash
 # Tentarvalor maior que o limite disponível
-curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
+curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-CONTA-001" \
   -H "Idempotency-Key: test-402" \
@@ -230,7 +230,7 @@ curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
 
 ```bash
 # JSON inválido ou campos obrigatórios ausentes
-curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
+curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-CONTA-001" \
   -H "Idempotency-Key: test-422" \
@@ -249,7 +249,7 @@ curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
 ```bash
 # Enviar > 100 requisições/segundo
 for i in {1..150}; do
-  curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
+  curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer jwt-CONTA-001-$i" \
     -H "Idempotency-Key: test-$i" \
@@ -346,7 +346,7 @@ awslocal dynamodb scan --table-name pod99-rate-limit --region us-east-1
 ```bash
 #!/bin/bash
 # Testar com token válido
-ENDPOINT="http://localhost:8080/v1/contratos/CONTA-001/autorizacoes"
+ENDPOINT="http://localhost:8081/v1/contratos/CONTA-001/autorizacoes"
 TOKEN="Bearer jwt-CONTA-001"
 IDEMPOTENCY_KEY="test-$(date +%s)"
 
@@ -366,7 +366,7 @@ curl -X POST "$ENDPOINT" \
 ```bash
 #!/bin/bash
 # Testar SEM token (deve retornar 401)
-ENDPOINT="http://localhost:8080/v1/contratos/CONTA-001/autorizacoes"
+ENDPOINT="http://localhost:8081/v1/contratos/CONTA-001/autorizacoes"
 
 curl -X POST "$ENDPOINT" \
   -H "Content-Type: application/json" \

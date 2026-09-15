@@ -11,7 +11,7 @@ Infraestrutura **100% automatizada com Terraform**. LocalStack sobe VAZIO, Terra
 ### **Terminal 1: Subir LocalStack (VAZIO!)**
 ```bash
 cd ~/challenge-pod99
-docker-compose up
+docker compose up
 ```
 
 **Aguardar até ver:**
@@ -177,8 +177,8 @@ ACC-100:
 
 ### LocalStack não sobe:
 ```bash
-docker-compose down
-docker-compose up
+docker compose down
+docker compose up
 ```
 
 ### Terraform falha:

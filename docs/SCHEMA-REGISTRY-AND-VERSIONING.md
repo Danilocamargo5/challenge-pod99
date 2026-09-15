@@ -371,7 +371,7 @@ public class AccountingEventListener {
     @Autowired
     private SchemaVersioningService versioningService;
     
-    @SqsListener("pod99-accounting-queue")
+    @SqsListener("pod99-accounting-queue.fifo")
     public void handleEvent(String message) {
         try {
             // Detectar versão

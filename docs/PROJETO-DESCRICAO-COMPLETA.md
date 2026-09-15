@@ -41,10 +41,10 @@ POST /v1/contratos/{id_contrato}/autorizacoes
 **Request Body:**
 ```json
 {
-  "id_conta": "string",
+  "idConta": "string",
   "valor": "decimal 18,2",
   "moeda": "ISO 4217",
-  "tipo_operacao": "DEBITO|CREDITO|RESERVA|ESTORNO",
+  "tipoOperacao": "DEBITO|CREDITO|RESERVA|ESTORNO",
   "id_estabelecimento": "string (opcional)",
   "metadata": "object (opcional)"
 }

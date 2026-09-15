@@ -69,7 +69,7 @@ Authorization Service
 EventBridge (pod99-transacao-autorizada-rule)
   │ Filtra: source="pod99.authorization" + detail-type="TransacaoAutorizada"
   │
-  ├→ SQS-Accounting (pod99-accounting-queue)
+  ├→ SQS-Accounting (pod99-accounting-queue.fifo)
   │   ↓ manualAck (Spring Cloud AWS)
   │   AccountingEventListener
   │   ├─ Verifica idempotência (event_id)
@@ -223,7 +223,7 @@ HTTP 402 Payment Required
 - `DynamoDBLimitRepositoryTest`: conditional update, race condition
 
 ### Integração (Local)
-- `docker-compose up`: rodar stack completa
+- `docker compose up`: rodar stack completa
 - `curl POST .../autorizacoes`: end-to-end
 
 ### Carga (Não implementado neste desafio)
@@ -250,17 +250,17 @@ HTTP 402 Payment Required
 ## Como Rodar Localmente
 
 ```bash
-docker-compose up
+docker compose up
 
 # Em outro terminal
-curl -X POST http://localhost:8080/v1/contratos/CONTA-001/autorizacoes \
+curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Idempotency-Key: uuid-1" \
   -H "Content-Type: application/json" \
   -d '{
-    "id_conta": "ACC-001",
+    "idConta": "ACC-001",
     "valor": 100.00,
     "moeda": "BRL",
-    "tipo_operacao": "DEBITO"
+    "tipoOperacao": "DEBITO"
   }'
 
 # Resposta esperada

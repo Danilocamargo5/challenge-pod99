@@ -166,7 +166,7 @@ String accountId = jwtValidator.validateAndExtractAccountId(
 
 ### Teste VÁLIDO (token correto)
 ```bash
-curl -X POST http://localhost:8080/v1/contratos/authorize \
+curl -X POST http://localhost:8081/v1/contratos/authorize \
   -H "Content-Type: application/json" \
   -d '{
     "authorizationToken": "Bearer jwt-ACC-001",
@@ -183,7 +183,7 @@ curl -X POST http://localhost:8080/v1/contratos/authorize \
 
 ### Teste INVÁLIDO (token ruim)
 ```bash
-curl -X POST http://localhost:8080/v1/contratos/authorize \
+curl -X POST http://localhost:8081/v1/contratos/authorize \
   -H "Content-Type: application/json" \
   -d '{
     "authorizationToken": "Bearer invalid-token",

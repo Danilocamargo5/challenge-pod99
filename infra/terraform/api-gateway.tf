@@ -102,7 +102,7 @@ resource "aws_api_gateway_method" "autorizar_transacao" {
 
   # Path parameter e headers obrigatórios
   request_parameters = {
-    "method.request.path.idContrato" = true
+    "method.request.path.idContrato"      = true
     "method.request.header.Authorization" = true
   }
 }

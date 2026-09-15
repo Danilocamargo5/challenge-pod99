@@ -170,7 +170,7 @@ Started AccountingServiceApplication in 8.456 seconds
 
 ```bash
 # Health checks
-curl -s http://localhost:8080/v1/health | jq .
+curl -s http://localhost:8080/actuator/health | jq .
 curl -s http://localhost:8082/v1/limits/health | jq .
 
 # Esperado:
@@ -291,7 +291,7 @@ curl -X POST http://localhost:8000/ \
 
 ```bash
 # Setup manual
-./scripts/setup-eventbridge-sqs.sh
+./scripts/validate-eventbridge-sqs.sh
 
 # Validar
 ./scripts/validate-eventbridge-sqs.sh
@@ -334,7 +334,7 @@ Antes de considerar pronto:
 - [ ] Terminal 1: Authorization subiu com ✅
 - [ ] Terminal 2: Limits subiu com ✅
 - [ ] Terminal 3: Accounting subiu com ✅
-- [ ] `curl http://localhost:8080/v1/health` retorna UP
+- [ ] `curl http://localhost:8080/actuator/health` retorna UP
 - [ ] `curl http://localhost:8082/v1/limits/health` retorna UP
 
 ---

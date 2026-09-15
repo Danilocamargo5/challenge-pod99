@@ -1,68 +1,144 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
-echo "📊 Populando dados de teste: 100 contas × 3 contratos = 300 registros..."
+LOCALSTACK_URL="${LOCALSTACK_URL:-http://localhost:4566}"
+REGION="${AWS_REGION:-us-east-1}"
+TABLE_NAME="pod99-limits"
 
-# Aguardar LocalStack pronto
-until awslocal dynamodb list-tables --region us-east-1 > /dev/null 2>&1; do
-  echo "⏳ Aguardando LocalStack pronto..."
-  sleep 2
+export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-test}"
+export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-test}"
+export AWS_DEFAULT_REGION="$REGION"
+
+echo "============================================================"
+echo "📊 POD99 - População de dados de teste"
+echo "============================================================"
+echo ""
+echo "100 contas × 3 contratos = 300 registros"
+echo ""
+
+echo "⏳ Aguardando LocalStack..."
+
+for i in {1..30}; do
+    if curl -sf "$LOCALSTACK_URL/_localstack/health" > /dev/null 2>&1; then
+        echo "✅ LocalStack disponível"
+        break
+    fi
+
+    if [ "$i" -eq 30 ]; then
+        echo "❌ LocalStack não ficou disponível"
+        exit 1
+    fi
+
+    sleep 2
 done
 
-echo "✅ LocalStack pronto!"
+echo ""
+echo "🔍 Verificando tabela $TABLE_NAME..."
+
+if ! aws \
+    --endpoint-url="$LOCALSTACK_URL" \
+    dynamodb describe-table \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    > /dev/null 2>&1; then
+
+    echo "❌ Tabela DynamoDB não encontrada: $TABLE_NAME"
+    echo "   Execute primeiro: ./scripts/start-local.sh"
+    exit 1
+fi
+
+echo "✅ Tabela encontrada"
+echo ""
+echo "📥 Inserindo registros..."
 
 TOTAL=0
 
-# Gerar 100 contas (ACC-001 até ACC-100)
-for account_num in {1..100}; do
-    account_id=$(printf "ACC-%03d" $account_num)
-    
-    # Cada conta tem 3 contratos
-    for contract_num in {1..3}; do
-        # Calcular número global do contrato
-        # ACC-001: CONTA-001, CONTA-002, CONTA-003
-        # ACC-002: CONTA-004, CONTA-005, CONTA-006
-        # ...
-        global_contract_num=$(( ($account_num - 1) * 3 + $contract_num ))
-        contract_id=$(printf "CONTA-%03d" $global_contract_num)
-        
-        # Inserir limite com valor variado
-        limite=$(printf "%.2f" $(( 50000 + ($account_num * 1000) )))
-        
-        awslocal dynamodb put-item \
-          --table-name pod99-limits \
-          --item "{
-            \"id_contrato\": {\"S\": \"$contract_id\"},
-            \"id_conta\": {\"S\": \"$account_id\"},
-            \"limite\": {\"N\": \"$limite\"},
-            \"disponivel\": {\"N\": \"$limite\"},
-            \"reservado\": {\"N\": \"0.00\"},
-            \"version\": {\"N\": \"0\"}
-          }" \
-          --region us-east-1 2>/dev/null || true
-        
+for account_num in $(seq 1 100); do
+
+    account_id=$(printf "ACC-%03d" "$account_num")
+
+    for contract_num in $(seq 1 3); do
+
+        global_contract_num=$(( (account_num - 1) * 3 + contract_num ))
+
+        contract_id=$(printf "CONTA-%03d" "$global_contract_num")
+
+        limite=$((50000 + account_num * 1000))
+
+        aws \
+            --endpoint-url="$LOCALSTACK_URL" \
+            dynamodb put-item \
+            --table-name "$TABLE_NAME" \
+            --region "$REGION" \
+            --item "{
+                \"id_contrato\": {\"S\": \"$contract_id\"},
+                \"id_conta\": {\"S\": \"$account_id\"},
+                \"limite\": {\"N\": \"${limite}.00\"},
+                \"disponivel\": {\"N\": \"${limite}.00\"},
+                \"reservado\": {\"N\": \"0.00\"},
+                \"version\": {\"N\": \"0\"}
+            }" \
+            > /dev/null
+
         TOTAL=$((TOTAL + 1))
-        
-        # Mostrar progresso a cada 30 registros
+
         if [ $((TOTAL % 30)) -eq 0 ]; then
-            echo "  ✓ $TOTAL registros inseridos..."
+            echo "   ✓ $TOTAL/300 registros inseridos"
         fi
     done
 done
 
 echo ""
-echo "✅ População concluída!"
-echo "📊 Total de limites inseridos: $TOTAL"
-echo "   - Contas: 100 (ACC-001 até ACC-100)"
-echo "   - Contratos: 300 (CONTA-001 até CONTA-300)"
-echo "   - Contratos por conta: 3"
-echo ""
-echo "🔍 Exemplo de dados:"
-awslocal dynamodb get-item \
-  --table-name pod99-limits \
-  --key '{"id_contrato": {"S": "CONTA-001"}}' \
-  --region us-east-1 | grep -E "id_contrato|id_conta|limite|disponivel" | head -4
+echo "🔍 Validando quantidade de registros..."
+
+COUNT=$(aws \
+    --endpoint-url="$LOCALSTACK_URL" \
+    dynamodb scan \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --select COUNT \
+    --query 'Count' \
+    --output text)
+
+if [ "$COUNT" -lt 300 ]; then
+    echo "❌ Quantidade inesperada de registros"
+    echo "   Esperado: pelo menos 300"
+    echo "   Encontrado: $COUNT"
+    exit 1
+fi
+
+echo "✅ Registros encontrados: $COUNT"
 
 echo ""
-echo "✨ Dados de teste populados com sucesso!"
+echo "🔍 Validando CONTA-001..."
+
+ITEM=$(aws \
+    --endpoint-url="$LOCALSTACK_URL" \
+    dynamodb get-item \
+    --table-name "$TABLE_NAME" \
+    --region "$REGION" \
+    --key '{"id_contrato":{"S":"CONTA-001"}}' \
+    --output json)
+
+ACCOUNT=$(echo "$ITEM" | jq -r '.Item.id_conta.S // empty')
+LIMIT=$(echo "$ITEM" | jq -r '.Item.limite.N // empty')
+
+if [ "$ACCOUNT" != "ACC-001" ]; then
+    echo "❌ CONTA-001 não está associada à ACC-001"
+    exit 1
+fi
+
+echo "✅ CONTA-001 → ACC-001"
+echo "   Limite: R$ $LIMIT"
+
+echo ""
+echo "============================================================"
+echo "✅ POPULAÇÃO CONCLUÍDA"
+echo "============================================================"
+echo ""
+echo "Contas:             ACC-001 até ACC-100"
+echo "Contratos:          CONTA-001 até CONTA-300"
+echo "Contratos por conta: 3"
+echo "Registros inseridos: $TOTAL"
+echo ""

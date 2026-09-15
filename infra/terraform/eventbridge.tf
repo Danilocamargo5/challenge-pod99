@@ -19,13 +19,20 @@ resource "aws_cloudwatch_event_rule" "transacao_autorizada" {
 
 # ==================================================================================
 # EventBridge Target
-# Criado via curl no LocalStack
+# Criado via curl no LocalStack por Terraform local-exec.
+#
+# Motivo:
+# O LocalStack possui limitações na configuração do target FIFO do EventBridge
+# através do provider Terraform. O target é criado diretamente pela API compatível
+# do EventBridge, incluindo SqsParameters.MessageGroupId.
 # ==================================================================================
 
 resource "null_resource" "eventbridge_target" {
 
   provisioner "local-exec" {
     command = <<-EOT
+      echo "Configurando EventBridge Target..."
+
       RESPONSE=$(curl -s -X POST http://localhost:4566/ \
         -H "Content-Type: application/x-amz-json-1.1" \
         -H "X-Amz-Target: AWSEvents.PutTargets" \
@@ -44,10 +51,9 @@ resource "null_resource" "eventbridge_target" {
       echo "Resposta do LocalStack:"
       echo "$RESPONSE"
 
-      echo "$RESPONSE" | grep -q '"FailedEntryCount": 0'
-
-      if [ $? -ne 0 ]; then
+      if ! echo "$RESPONSE" | grep -Eq '"FailedEntryCount"[[:space:]]*:[[:space:]]*0'; then
         echo "ERRO: EventBridge Target não foi criado."
+        echo "Resposta recebida: $RESPONSE"
         exit 1
       fi
 
@@ -72,7 +78,13 @@ resource "null_resource" "eventbridge_target" {
       echo "Resposta do LocalStack:"
       echo "$RESPONSE"
 
-      echo "EventBridge Target removido!"
+      if ! echo "$RESPONSE" | grep -Eq '"FailedEntryCount"[[:space:]]*:[[:space:]]*0'; then
+        echo "ERRO: EventBridge Target não foi removido."
+        echo "Resposta recebida: $RESPONSE"
+        exit 1
+      fi
+
+      echo "EventBridge Target removido com sucesso!"
     EOT
   }
 
@@ -112,7 +124,7 @@ resource "aws_iam_role" "eventbridge_role" {
 }
 
 # ==================================================================================
-# Policy para EventBridge enviar para SQS
+# Policy para EventBridge enviar mensagens para SQS
 # ==================================================================================
 
 resource "aws_iam_role_policy" "eventbridge_sqs_policy" {
@@ -139,7 +151,7 @@ resource "aws_iam_role_policy" "eventbridge_sqs_policy" {
 }
 
 # ==================================================================================
-# OUTPUTS
+# Outputs
 # ==================================================================================
 
 output "eventbridge_rule_name" {
@@ -155,7 +167,7 @@ output "eventbridge_rule_arn" {
 }
 
 output "eventbridge_target_note" {
-  description = "Target criado via AWS CLI"
+  description = "Target EventBridge configurado no LocalStack"
 
-  value = "EventBridge Target criado via CLI com SqsParameters.MessageGroupId"
+  value = "EventBridge Target criado via Terraform local-exec com SqsParameters.MessageGroupId"
 }

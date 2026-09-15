@@ -1,193 +1,285 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
-echo "🔍 VALIDAÇÃO COMPLETA DA INFRAESTRUTURA POD99"
-echo ""
+cd "$(dirname "$0")/.."
 
-# Cores
+LOCALSTACK_URL="${LOCALSTACK_URL:-http://localhost:4566}"
+REGION="${AWS_REGION:-us-east-1}"
+
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Função para imprimir resultado
-check() {
-  if [ $1 -eq 0 ]; then
-    echo -e "${GREEN}✅ $2${NC}"
-  else
-    echo -e "${RED}❌ $2${NC}"
-    exit 1
-  fi
+ERRORS=0
+WARNINGS=0
+
+ok() {
+    echo -e "${GREEN}✅ $1${NC}"
 }
 
-# Função para testar endpoint
-test_endpoint() {
-  local url=$1
-  local expected=$2
-  local description=$3
-  
-  echo -n "   Testando $description... "
-  response=$(curl -s -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
-  
-  if [ "$response" = "$expected" ] || [ "$response" = "200" ] || [ "$response" = "301" ]; then
-    echo -e "${GREEN}✅ (HTTP $response)${NC}"
-  else
-    echo -e "${RED}❌ (HTTP $response, esperado $expected)${NC}"
-    return 1
-  fi
+fail() {
+    echo -e "${RED}❌ $1${NC}"
+    ERRORS=$((ERRORS + 1))
 }
 
-echo "════════════════════════════════════════════════════════════"
-echo "1️⃣ DOCKER CONTAINERS"
-echo "════════════════════════════════════════════════════════════"
-echo ""
+warn() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+    WARNINGS=$((WARNINGS + 1))
+}
 
-# DynamoDB
-echo -n "DynamoDB Local... "
-if docker ps | grep -q "dynamodb-local"; then
-  echo -e "${GREEN}✅ RODANDO${NC}"
-  test_endpoint "http://localhost:8000/" "200" "DynamoDB Local" || true
-else
-  echo -e "${RED}❌ NÃO ESTÁ RODANDO${NC}"
-fi
-echo ""
+section() {
+    echo ""
+    echo "============================================================"
+    echo "$1"
+    echo "============================================================"
+    echo ""
+}
 
-# LocalStack
-echo -n "LocalStack... "
-if docker ps | grep -q "localstack"; then
-  echo -e "${GREEN}✅ RODANDO${NC}"
-  test_endpoint "http://localhost:4566/_localstack/health" "200" "LocalStack Health" || true
-else
-  echo -e "${RED}❌ NÃO ESTÁ RODANDO${NC}"
-fi
-echo ""
+container_running() {
+    docker ps --format '{{.Names}}' | grep -qx "$1"
+}
 
-# API Gateway Simulator
-echo -n "API Gateway Simulator... "
-if docker ps | grep -q "api-gateway-simulator"; then
-  echo -e "${GREEN}✅ RODANDO${NC}"
-  test_endpoint "http://localhost:8081/" "200" "API Gateway Simulator" || true
-else
-  echo -e "${YELLOW}⚠️  NÃO ESTÁ RODANDO (será iniciado ao chamar start-local.sh)${NC}"
-fi
-echo ""
+http_check() {
+    local url="$1"
+    local description="$2"
 
-echo "════════════════════════════════════════════════════════════"
-echo "2️⃣ CONFIGURAÇÃO AWS SDK"
-echo "════════════════════════════════════════════════════════════"
-echo ""
+    if curl -sf --connect-timeout 3 "$url" > /dev/null 2>&1; then
+        ok "$description"
+    else
+        fail "$description não respondeu em $url"
+    fi
+}
 
-# Verificar variáveis de ambiente
-echo "Variáveis de ambiente:"
-echo -n "   AWS_ACCESS_KEY_ID... "
-if [ -z "$AWS_ACCESS_KEY_ID" ]; then
-  echo -e "${YELLOW}⚠️  (não definido, OK para local)${NC}"
-else
-  echo -e "${GREEN}✅ $AWS_ACCESS_KEY_ID${NC}"
-fi
+aws_local() {
+    docker exec \
+        -e AWS_ACCESS_KEY_ID=test \
+        -e AWS_SECRET_ACCESS_KEY=test \
+        -e AWS_DEFAULT_REGION="$REGION" \
+        localstack \
+        aws --endpoint-url=http://localhost:4566 "$@"
+}
 
-echo -n "   AWS_SECRET_ACCESS_KEY... "
-if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-  echo -e "${YELLOW}⚠️  (não definido, OK para local)${NC}"
-else
-  echo -e "${GREEN}✅ ****${NC}"
-fi
-echo ""
+echo "============================================================"
+echo "🔍 POD99 - VALIDAÇÃO DA INFRAESTRUTURA LOCAL"
+echo "============================================================"
 
-echo "════════════════════════════════════════════════════════════"
-echo "3️⃣ ESTRUTURA DE MÓDULOS MAVEN"
-echo "════════════════════════════════════════════════════════════"
-echo ""
+section "1. FERRAMENTAS NECESSÁRIAS"
 
-# Verificar se pom.xml pai existe
-echo -n "pom.xml (parent)... "
-if [ -f "pom.xml" ]; then
-  if grep -q "<modules>" pom.xml; then
-    echo -e "${GREEN}✅ ENCONTRADO (multi-module)${NC}"
-  else
-    echo -e "${RED}❌ NÃO É MULTI-MODULE${NC}"
-  fi
-else
-  echo -e "${RED}❌ NÃO ENCONTRADO${NC}"
-fi
-echo ""
-
-# Verificar módulos
-for module in "common-lib" "authorization-service" "limits-service" "accounting-service"; do
-  echo -n "$module... "
-  if [ -d "$module" ] && [ -f "$module/pom.xml" ]; then
-    echo -e "${GREEN}✅ ENCONTRADO${NC}"
-  else
-    echo -e "${RED}❌ NÃO ENCONTRADO${NC}"
-  fi
+for command in docker terraform mvn curl jq; do
+    if command -v "$command" > /dev/null 2>&1; then
+        ok "$command encontrado"
+    else
+        fail "$command não encontrado no PATH"
+    fi
 done
-echo ""
 
-echo "════════════════════════════════════════════════════════════"
-echo "4️⃣ PORTAS CONFIGURADAS"
-echo "════════════════════════════════════════════════════════════"
-echo ""
+section "2. ESTRUTURA DO PROJETO"
 
-echo "Verificando application-local.yml:"
-for service in "authorization-service" "limits-service" "accounting-service"; do
-  port=$(grep "port:" "$service/src/main/resources/application-local.yml" | head -1 | awk '{print $NF}')
-  echo -e "   $service: ${GREEN}porta $port${NC}"
+required_files=(
+    "pom.xml"
+    "docker-compose.yml"
+    "infra/terraform/main.tf"
+    "infra/terraform/sqs.tf"
+    "infra/terraform/eventbridge.tf"
+    "scripts/start-local.sh"
+    "scripts/validate-eventbridge-sqs.sh"
+    "scripts/setup-docker-network.sh"
+)
+
+for file in "${required_files[@]}"; do
+    if [ -f "$file" ]; then
+        ok "$file"
+    else
+        fail "Arquivo não encontrado: $file"
+    fi
 done
-echo ""
 
-echo "════════════════════════════════════════════════════════════"
-echo "5️⃣ SCRIPTS DE SETUP"
-echo "════════════════════════════════════════════════════════════"
-echo ""
+for module in \
+    common-lib \
+    authorization-service \
+    limits-service \
+    accounting-service; do
 
-scripts=("start-local.sh" "setup-eventbridge-sqs.sh" "setup-docker-network.sh" "validate-eventbridge-sqs.sh")
+    if [ -f "$module/pom.xml" ]; then
+        ok "Módulo Maven: $module"
+    else
+        fail "Módulo Maven inválido ou ausente: $module"
+    fi
+done
+
+section "3. SCRIPTS"
+
+scripts=(
+    "scripts/start-local.sh"
+    "scripts/setup-docker-network.sh"
+    "scripts/validate-eventbridge-sqs.sh"
+    "scripts/validate-infra.sh"
+)
+
 for script in "${scripts[@]}"; do
-  echo -n "$script... "
-  if [ -f "scripts/$script" ] && [ -x "scripts/$script" ]; then
-    echo -e "${GREEN}✅ EXECUTÁVEL${NC}"
-  else
-    echo -e "${RED}❌ NÃO ENCONTRADO OU NÃO EXECUTÁVEL${NC}"
-  fi
+
+    if [ ! -f "$script" ]; then
+        fail "Script não encontrado: $script"
+        continue
+    fi
+
+    if bash -n "$script"; then
+        ok "Sintaxe válida: $script"
+    else
+        fail "Erro de sintaxe: $script"
+    fi
+
+    if [ -x "$script" ]; then
+        ok "Executável: $script"
+    else
+        warn "Sem permissão de execução: $script"
+    fi
 done
-echo ""
 
-echo "════════════════════════════════════════════════════════════"
-echo "6️⃣ VALIDAÇÃO DE COMPILAÇÃO"
-echo "════════════════════════════════════════════════════════════"
-echo ""
+section "4. TERRAFORM"
 
-echo "Testando compilação (Maven)..."
-if command -v mvn &> /dev/null; then
-  echo -n "   mvn -pl common-lib compile... "
-  if mvn -pl common-lib compile -q 2>/dev/null; then
-    echo -e "${GREEN}✅ OK${NC}"
-  else
-    echo -e "${RED}❌ FALHA${NC}"
-  fi
+if terraform -chdir=infra/terraform fmt -check > /dev/null; then
+    ok "terraform fmt -check"
 else
-  echo -e "${YELLOW}⚠️  Maven não encontrado no PATH${NC}"
+    fail "Terraform possui arquivos sem formatação"
 fi
+
+if terraform -chdir=infra/terraform validate > /dev/null; then
+    ok "terraform validate"
+else
+    fail "terraform validate"
+fi
+
+section "5. MAVEN"
+
+if mvn -q -DskipTests compile; then
+    ok "Compilação Maven"
+else
+    fail "Falha na compilação Maven"
+fi
+
+section "6. DOCKER"
+
+if ! docker info > /dev/null 2>&1; then
+    fail "Docker não está disponível"
+else
+    ok "Docker disponível"
+
+    if container_running "localstack"; then
+        ok "LocalStack rodando"
+        http_check "$LOCALSTACK_URL/_localstack/health" \
+            "LocalStack Health"
+    else
+        fail "LocalStack não está rodando"
+    fi
+
+    if container_running "dynamodb-local"; then
+        ok "DynamoDB Local rodando"
+    else
+        warn "DynamoDB Local não está rodando"
+    fi
+
+    if container_running "api-gateway-simulator"; then
+        ok "API Gateway Simulator rodando"
+    else
+        warn "API Gateway Simulator não está rodando"
+    fi
+fi
+
+section "7. AWS / LOCALSTACK"
+
+if container_running "localstack" &&
+   curl -sf "$LOCALSTACK_URL/_localstack/health" > /dev/null 2>&1; then
+
+    if aws_local sqs get-queue-url \
+        --queue-name "pod99-accounting-queue.fifo" \
+        --region "$REGION" \
+        > /dev/null 2>&1; then
+
+        ok "SQS pod99-accounting-queue.fifo"
+    else
+        fail "SQS pod99-accounting-queue.fifo não encontrada"
+    fi
+
+    if aws_local sqs get-queue-url \
+        --queue-name "pod99-accounting-dlq.fifo" \
+        --region "$REGION" \
+        > /dev/null 2>&1; then
+
+        ok "DLQ pod99-accounting-dlq.fifo"
+    else
+        fail "DLQ pod99-accounting-dlq.fifo não encontrada"
+    fi
+
+    if aws_local events describe-rule \
+        --name "pod99-transacao-autorizada-rule" \
+        --region "$REGION" \
+        > /dev/null 2>&1; then
+
+        ok "EventBridge Rule pod99-transacao-autorizada-rule"
+    else
+        fail "EventBridge Rule não encontrada"
+    fi
+
+    TARGETS_JSON=$(
+        aws_local events list-targets-by-rule \
+            --rule "pod99-transacao-autorizada-rule" \
+            --region "$REGION" \
+            --output json 2>/dev/null || echo '{"Targets":[]}'
+    )
+
+    TARGET_ARN=$(
+        echo "$TARGETS_JSON" |
+            jq -r '.Targets[0].Arn // empty'
+    )
+
+    MESSAGE_GROUP_ID=$(
+        echo "$TARGETS_JSON" |
+            jq -r '.Targets[0].SqsParameters.MessageGroupId // empty'
+    )
+
+    if [[ "$TARGET_ARN" == *":pod99-accounting-queue.fifo" ]]; then
+        ok "EventBridge Target → SQS FIFO"
+    else
+        fail "EventBridge Target não aponta para pod99-accounting-queue.fifo"
+    fi
+
+    if [ "$MESSAGE_GROUP_ID" = "pod99" ]; then
+        ok "SQS MessageGroupId = pod99"
+    else
+        fail "MessageGroupId incorreto ou ausente"
+    fi
+
+else
+    warn "LocalStack indisponível; validação dos recursos AWS foi ignorada"
+fi
+
+section "RESULTADO"
+
+echo "Erros:    $ERRORS"
+echo "Avisos:   $WARNINGS"
 echo ""
 
-echo "════════════════════════════════════════════════════════════"
-echo "✅ VALIDAÇÃO COMPLETA!"
-echo "════════════════════════════════════════════════════════════"
+if [ "$ERRORS" -gt 0 ]; then
+    echo -e "${RED}❌ INFRAESTRUTURA COM PROBLEMAS${NC}"
+    echo ""
+    exit 1
+fi
+
+if [ "$WARNINGS" -gt 0 ]; then
+    echo -e "${YELLOW}⚠️  VALIDAÇÃO CONCLUÍDA COM AVISOS${NC}"
+else
+    echo -e "${GREEN}✅ INFRAESTRUTURA VALIDADA COM SUCESSO${NC}"
+fi
+
 echo ""
-echo "📋 PRÓXIMOS PASSOS:"
+echo "Para iniciar todo o ambiente:"
 echo ""
-echo "1. Executar infraestrutura:"
-echo "   ./scripts/start-local.sh"
+echo "  ./scripts/start-local.sh"
 echo ""
-echo "2. Aguardar ~30 segundos (LocalStack + Terraform + EventBridge setup)"
+echo "Depois, para validar EventBridge → SQS:"
 echo ""
-echo "3. Em 3 terminais diferentes, rodar:"
-echo "   Terminal 1: mvn -pl authorization-service spring-boot:run"
-echo "   Terminal 2: mvn -pl limits-service spring-boot:run"
-echo "   Terminal 3: mvn -pl accounting-service spring-boot:run"
-echo ""
-echo "4. Aguardar todos subirem (logs com ✅)"
-echo ""
-echo "5. Testar em Terminal 4 (depois de amanhã):"
-echo "   curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes ..."
+echo "  ./scripts/validate-eventbridge-sqs.sh"
 echo ""

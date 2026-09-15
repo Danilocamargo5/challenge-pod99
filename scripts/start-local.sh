@@ -1,73 +1,164 @@
 #!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+AUTH_HEALTH="http://localhost:8080/actuator/health"
+LIMITS_HEALTH="http://localhost:8082/actuator/health"
+ACCOUNTING_HEALTH="http://localhost:8083/actuator/health"
+
+AUTH_PID="-"
+LIMITS_PID="-"
+ACCOUNTING_PID="-"
+
+wait_for_url() {
+    local name="$1"
+    local url="$2"
+    local log_file="$3"
+
+    echo "⏳ Aguardando $name..."
+
+    for i in {1..30}; do
+        if curl -sf --connect-timeout 2 "$url" > /dev/null; then
+            echo "✅ $name disponível"
+            return 0
+        fi
+
+        if [ "$i" -eq 30 ]; then
+            echo "❌ $name não iniciou corretamente"
+            echo "Verifique: tail -f $log_file"
+            return 1
+        fi
+
+        sleep 2
+    done
+}
+
+start_service_if_needed() {
+    local name="$1"
+    local module="$2"
+    local health_url="$3"
+    local log_file="$4"
+    local pid_var="$5"
+
+    if curl -sf --connect-timeout 2 "$health_url" > /dev/null; then
+        echo "✅ $name já está em execução"
+        printf -v "$pid_var" '%s' "já em execução"
+        return 0
+    fi
+
+    echo "🚀 Iniciando $name..."
+
+    nohup mvn -pl "$module" spring-boot:run \
+        > "$log_file" 2>&1 &
+
+    local pid=$!
+    printf -v "$pid_var" '%s' "$pid"
+
+    wait_for_url "$name" "$health_url" "$log_file"
+}
+
 echo "🚀 Iniciando ambiente local POD99..."
+echo ""
 
 echo "🐳 Subindo LocalStack e DynamoDB..."
 docker compose up -d localstack dynamodb-local
 
+echo ""
+echo "⏳ Aguardando LocalStack ficar disponível..."
+
+for i in {1..30}; do
+    if curl -sf --connect-timeout 2 \
+        http://localhost:4566/_localstack/health > /dev/null; then
+        echo "✅ LocalStack disponível"
+        break
+    fi
+
+    if [ "$i" -eq 30 ]; then
+        echo "❌ LocalStack não ficou disponível a tempo"
+        exit 1
+    fi
+
+    sleep 2
+done
+
+echo ""
 echo "🔧 Configurando rede Docker..."
 ./scripts/setup-docker-network.sh
 
+echo ""
 echo "🏗️ Aplicando infraestrutura Terraform..."
+
 (
-  cd infra/terraform
-  terraform apply -auto-approve
+    cd infra/terraform
+    terraform init
+    terraform apply -auto-approve
 )
 
-echo "🔌 Configurando EventBridge → SQS Target..."
-./scripts/setup-eventbridge-sqs.sh
-
+echo ""
 echo "🌐 Iniciando API Gateway Simulator..."
 docker compose up -d api-gateway-simulator
+
+echo ""
+echo "🚀 Verificando microsserviços Java..."
+
+start_service_if_needed \
+    "Authorization Service" \
+    "authorization-service" \
+    "$AUTH_HEALTH" \
+    "/tmp/authorization.log" \
+    AUTH_PID
+
+echo ""
+
+start_service_if_needed \
+    "Limits Service" \
+    "limits-service" \
+    "$LIMITS_HEALTH" \
+    "/tmp/limits.log" \
+    LIMITS_PID
+
+echo ""
+
+start_service_if_needed \
+    "Accounting Service" \
+    "accounting-service" \
+    "$ACCOUNTING_HEALTH" \
+    "/tmp/accounting.log" \
+    ACCOUNTING_PID
 
 echo ""
 echo "============================================================"
 echo "✅ Ambiente local POD99 iniciado com sucesso!"
 echo "============================================================"
 echo ""
-echo "🚀 Para iniciar os 3 Microsserviços Spring Boot:"
-echo ""
-echo "   Abra 3 terminais diferentes e execute:"
-echo ""
-echo "   Terminal 1 (Authorization Service - porta 8080):"
-echo "   mvn -pl authorization-service spring-boot:run"
-echo ""
-echo "   Terminal 2 (Limits Service - porta 8082):"
-echo "   mvn -pl limits-service spring-boot:run"
-echo ""
-echo "   Terminal 3 (Accounting Service - SQS Listener):"
-echo "   mvn -pl accounting-service spring-boot:run"
-echo ""
-echo "   Terminal 4 (Testar - depois que os 3 subirem):"
-echo "   curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes ..."
-echo ""
 echo "📍 API Gateway Simulator: http://localhost:8081"
+echo "📍 Authorization Service: http://localhost:8080"
+echo "📍 Limits Service:        http://localhost:8082"
+echo "📍 Accounting Service:    http://localhost:8083"
 echo "📍 LocalStack:            http://localhost:4566"
 echo "📍 DynamoDB Local:        http://localhost:8000"
 echo ""
-echo "🔗 Microsserviços:"
-echo "   - authorization-service: http://localhost:8080"
-echo "   - limits-service:        http://localhost:8082"
-echo "   - accounting-service:    (listener SQS, sem HTTP)"
+echo "📨 SQS Accounting:"
+echo "   pod99-accounting-queue.fifo"
+echo ""
+echo "🧾 Processos Java:"
+echo "   Authorization: $AUTH_PID"
+echo "   Limits:        $LIMITS_PID"
+echo "   Accounting:    $ACCOUNTING_PID"
+echo ""
+echo "📋 Logs:"
+echo "   tail -f /tmp/authorization.log"
+echo "   tail -f /tmp/limits.log"
+echo "   tail -f /tmp/accounting.log"
+echo ""
+echo "🧪 Teste pela API Gateway:"
+echo ""
+echo "curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \\"
+echo '  -H "Content-Type: application/json" \'
+echo '  -H "Authorization: Bearer jwt-ACC-001" \'
+echo '  -H "Idempotency-Key: teste-001" \'
+echo "  -d '{\"idConta\":\"ACC-001\",\"valor\":50.00,\"moeda\":\"BRL\",\"tipoOperacao\":\"DEBITO\"}'"
 echo ""
 echo "============================================================"
-echo ""
-echo "🚀 Subindo serviços Java (background)..."
-
-# Subir em background em tmux ou nohup
-nohup mvn -pl authorization-service spring-boot:run > /tmp/authorization.log 2>&1 &
-sleep 2
-nohup mvn -pl limits-service spring-boot:run > /tmp/limits.log 2>&1 &
-sleep 2
-nohup mvn -pl accounting-service spring-boot:run > /tmp/accounting.log 2>&1 &
-
-echo "✅ Serviços Java iniciados em background"
-echo ""
-echo "Logs disponíveis em:"
-echo "  - Authorization: tail -f /tmp/authorization.log"
-echo "  - Limits: tail -f /tmp/limits.log"
-echo "  - Accounting: tail -f /tmp/accounting.log"

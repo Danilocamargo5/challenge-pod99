@@ -1,7 +1,7 @@
 # POD99 — Plataforma de Autorização de Transações
 
 [![Build](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/Danilocamargo5/challenge-pod99)
-[![Java](https://img.shields.io/badge/java-17-blue)](https://www.oracle.com/java/technologies/javase/jdk17-archive.html)
+[![Java](https://img.shields.io/badge/java-21-blue)](https://www.oracle.com/java/technologies/javase/jdk21-archive-downloads.html)
 [![Spring Boot](https://img.shields.io/badge/spring%20boot-3.1.5-green)](https://spring.io/projects/spring-boot)
 [![AWS](https://img.shields.io/badge/AWS-DynamoDB%20%7C%20EventBridge%20%7C%20SQS-orange)](https://aws.amazon.com)
 
@@ -96,35 +96,65 @@ LocalStack **não implementa API Gateway com Authorizer automaticamente**, entã
 
 ### Pré-requisitos
 
-- Docker & Docker Compose
-- Java 17+
-- Maven 3.9+ (ou usar wrapper: `./mvnw`)
+- Docker com Docker Compose V2
+- Java 21
+- Maven 3.9+
+- Terraform
+- `curl` e `jq`
 
-### Local (Recomendado) - Forma Rápida
+> Não são necessárias credenciais AWS reais para execução local.
+> O LocalStack utiliza as credenciais fictícias `test/test`.
 
-**1. Iniciar tudo com um comando**
+### 1. Configurar o ambiente local
 
-```bash
-./scripts/start-local.sh
-```
+O arquivo `.env.example` contém o modelo das variáveis necessárias para executar o projeto.
 
-Este script:
-- 🐳 Sobe LocalStack, DynamoDB, API Gateway Simulator
-- 🔧 Configura rede Docker (resolve LocalStack ↔ Simulator)
-- ⚙️ Aplica infraestrutura Terraform
-- 🏃 Inicia Spring Boot em `http://localhost:8080`
-
-**2. Aguardar inicialização (~20s)**
-
-Abrir novo terminal quando ver:
-```
-✅ POD99 Authorization Platform started successfully
-```
-
-**3. Testar a API via API Gateway Simulator**
+Após clonar o repositório, crie o arquivo local:
 
 ```bash
-# POST /v1/contratos/CONTA-001/autorizacoes
+cp .env.example .env.local
+```
+
+O `.env.example` é versionado. O `.env.local` é específico de cada ambiente e não é enviado ao Git.
+
+Para o ambiente local padrão, os valores fornecidos no `.env.example` já estão preparados para LocalStack.
+
+### 2. Iniciar a plataforma
+
+Execute:
+
+```bash
+./QUICKSTART.sh
+```
+
+O `QUICKSTART.sh` utiliza `scripts/start-local.sh`, responsável por:
+
+- subir LocalStack, DynamoDB Local e API Gateway Simulator;
+- configurar a rede Docker;
+- aplicar a infraestrutura Terraform;
+- iniciar Authorization Service;
+- iniciar Limits Service;
+- iniciar Accounting Service;
+- aguardar os health checks dos serviços.
+
+A infraestrutura AWS simulada é declarada pelo Terraform em `infra/terraform/`.
+
+### 3. Endpoints locais
+
+| Componente | Endereço |
+|---|---|
+| API Gateway Simulator | `http://localhost:8081` |
+| Authorization Service | `http://localhost:8080` |
+| Limits Service | `http://localhost:8082` |
+| Accounting Service | `http://localhost:8083` |
+| LocalStack | `http://localhost:4566` |
+| DynamoDB Local | `http://localhost:8000` |
+
+As chamadas externas da API devem utilizar a porta **8081**, passando pelo API Gateway Simulator e pelo fluxo de autorização.
+
+### 4. Testar uma autorização
+
+```bash
 curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer jwt-ACC-001" \
@@ -135,45 +165,32 @@ curl -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
     "moeda": "BRL",
     "tipoOperacao": "DEBITO"
   }' | jq .
-
-# Resposta esperada (HTTP 201)
-{
-  "id_autorizacao": "550e8400-e29b-41d4-a716-446655440000",
-  "saldo_reservado": 49900.00,
-  "correlation_id": "trace-550e8400-e29b-41d4-a716-446655440001",
-  "status": "APPROVED",
-  "timestamp": "2026-09-14T16:27:50.084487335Z"
-}
 ```
 
-**4. Ver todos os testes validados**
+Resposta esperada: **HTTP 201 Created**.
 
-Consulte: **[docs/SIMULATOR-TESTS.md](docs/SIMULATOR-TESTS.md)**
+### 5. Validar a infraestrutura
 
-**Status dos Testes:** ✅ **10/10 PASSANDO**
-- ✅ Autorização bem-sucedida (201)
-- ✅ Idempotência (mesmo ID em replicatas)
-- ✅ Token inválido (401)
-- ✅ Sem Authorization header (401)
-- ✅ Saldo insuficiente (402)
-- ✅ Race condition (409 Conflict)
-- ✅ Rate Limit (429 - 5 TPS)
-- ✅ Contrato inválido (422)
-- ✅ Sem Idempotency-Key (422 RFC 7807)
-- ✅ Múltiplos contratos (201 x3)
+```bash
+./scripts/validate-infra.sh
+```
 
-**5. (Opcional) Testar Load - 5.000 TPS**
+Para validar especificamente o fluxo EventBridge → SQS FIFO:
+
+```bash
+./scripts/validate-eventbridge-sqs.sh
+```
+
+### 6. Load test
 
 ```bash
 ./scripts/load-test.sh
 ```
 
-Simula 5.000 transações/segundo por 60 segundos.
-
-**6. Parar infraestrutura**
+### 7. Parar o ambiente
 
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 ---
@@ -232,18 +249,24 @@ Simulador em **Python/FastAPI** que replica o comportamento do AWS API Gateway c
 
 **Logs:** `docker logs api-gateway-simulator`
 
-**Nota:** Este componente é **apenas local**. Em produção (AWS), use AWS API Gateway oficial.
+**Por que existe o Simulator?**
+
+Durante a execução local, a combinação utilizada pelo projeto — **API Gateway REST + Lambda Authorizer + integração HTTP_PROXY** — não reproduziu no LocalStack o roteamento necessário para executar o fluxo completo da aplicação.
+
+Por isso, o Simulator funciona como um adaptador **exclusivamente local**, permitindo validar o fluxo de autenticação e roteamento de ponta a ponta.
+
+Ele **não substitui a arquitetura AWS**: o Terraform continua declarando o API Gateway REST e o Lambda Authorizer. Em uma implantação na AWS real, esses serviços são utilizados nativamente.
 
 ---
 
 ## ✅ Validar EventBridge → SQS
 
-O **EventBridge → SQS Target é configurado automaticamente** pelo script `setup-eventbridge-sqs.sh` que é executado quando você roda `./scripts/start-local.sh`.
+O **EventBridge → SQS Target é configurado automaticamente pelo Terraform** durante a execução de `./scripts/start-local.sh`.
 
 **Se precisar reconfigurar manualmente:**
 
 ```bash
-./scripts/setup-eventbridge-sqs.sh
+./scripts/validate-eventbridge-sqs.sh
 ```
 
 **Quando você fazer uma transação:**
@@ -265,7 +288,7 @@ curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
 
 **Fluxo completo:**
 1. ✅ EventBridge publica evento
-2. ✅ SQS recebe mensagem (configurado por setup-eventbridge-sqs.sh)
+2. ✅ SQS recebe mensagem (target configurado pelo Terraform)
 3. ✅ Spring consome via @SqsListener
 4. ✅ AccountingEventListener processa contabilização
 5. ✅ Retorna 201 ao cliente
@@ -276,7 +299,7 @@ curl -s -X POST http://localhost:8081/v1/contratos/CONTA-001/autorizacoes \
 
 | Problema | Solução |
 |----------|---------|
-| `docker-compose: command not found` | Instalar [Docker Desktop](https://www.docker.com/products/docker-desktop) |
+| `docker compose: command not found` | Instalar [Docker Desktop](https://www.docker.com/products/docker-desktop) |
 | `Port 8081 already in use` | `lsof -i :8081` → `kill -9 <PID>` |
 | `Lambda Authorizer fails` | Esperar LocalStack pronto (~5s) |
 | `Rate limit 429` | Esperado! Limite é 5 TPS. Ver `application-local.yml` |
@@ -290,7 +313,7 @@ Se preferir iniciar cada componente manualmente:
 
 ```bash
 # Terminal 1: Infraestrutura
-docker-compose up localstack dynamodb-local api-gateway-simulator
+docker compose up -d localstack dynamodb-local api-gateway-simulator
 
 # Terminal 2: Terraform
 cd infra/terraform
@@ -360,7 +383,6 @@ challenge-pod99/
 │   └── logback-spring.xml (JSON logging)
 ├── infra/
 │   ├── docker-compose.yml (orquestra tudo)
-│   ├── localstack-init.sh (cria tabelas/filas)
 │   └── terraform/ (IaC - AWS)
 ├── docs/
 │   ├── ARCHITECTURE.md (design doc)
@@ -433,10 +455,10 @@ mvn test jacoco:report
 **Request**:
 ```json
 {
-  "id_conta": "ACC-001",
+  "idConta": "ACC-001",
   "valor": 100.00,
   "moeda": "BRL",
-  "tipo_operacao": "DEBITO",
+  "tipoOperacao": "DEBITO",
   "id_estabelecimento": "EST-123",  // opcional
   "metadata": {}  // opcional
 }
@@ -553,8 +575,8 @@ Por que X ao invés de Y?
 
 | Problema | Solução |
 |----------|---------|
-| `docker-compose: command not found` | Instalar Docker Desktop |
-| `Connection refused: localhost:8000` | `docker-compose up` (aguardar DynamoDB) |
+| `docker compose: command not found` | Instalar Docker Desktop |
+| `Connection refused: localhost:8000` | `docker compose up -d dynamodb-local` (aguardar DynamoDB) |
 | `404 /v1/contratos/...` | Verificar `http://localhost:8080/actuator/health` |
 | `Limite insuficiente` | Contrato CONTA-001 tem limite de 100.000 |
 | `Idempotency-Key obrigatório` | Adicionar header na requisição |

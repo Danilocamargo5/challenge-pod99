@@ -27,3 +27,16 @@ node_modules/
 dist/
 
 build/
+
+# Local environment configuration
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Terraform local files
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log

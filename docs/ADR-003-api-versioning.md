@@ -24,10 +24,10 @@ GET /v2/contratos/{id}/autorizacoes    ← Cliente novo
 ### Request (v1)
 ```json
 {
-  "id_conta": "ACC-001",
+  "idConta": "ACC-001",
   "valor": 100.00,
   "moeda": "BRL",
-  "tipo_operacao": "DEBITO"
+  "tipoOperacao": "DEBITO"
 }
 ```
 
