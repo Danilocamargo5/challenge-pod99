@@ -3,6 +3,8 @@ package com.pod99.authorization.application;
 import com.pod99.authorization.domain.Authorization;
 import com.pod99.authorization.domain.AuthorizationRepository;
 import com.pod99.authorization.domain.AuthorizationStatus;
+import com.pod99.common.exception.InsufficientLimitException;
+import com.pod99.common.exception.LockAcquisitionException;
 import com.pod99.config.EventBridgePublisher;
 import com.pod99.config.LockService;
 import org.junit.jupiter.api.Test;
@@ -39,11 +41,7 @@ class AuthorizeTransactionUseCaseTest {
     @InjectMocks
     private AuthorizeTransactionUseCase useCase;
 
-    @Test
-    void testAuthorizeTransaction_Success() {
-
-        String idContrato = "CONTA-001";
-
+    private AuthorizeTransactionRequest createValidRequest() {
         AuthorizeTransactionRequest request =
                 new AuthorizeTransactionRequest();
 
@@ -52,27 +50,44 @@ class AuthorizeTransactionUseCaseTest {
         request.setMoeda("BRL");
         request.setTipoOperacao("DEBITO");
 
+        return request;
+    }
+
+    private AuthorizeTransactionUseCase.LimitReserveResponse
+    createLimitResponse(String idContrato) {
+
+        AuthorizeTransactionUseCase.LimitReserveResponse response =
+                new AuthorizeTransactionUseCase.LimitReserveResponse();
+
+        response.setId(idContrato);
+        response.setSaldoAtual(9900.0);
+        response.setSaldoAnterior(10000.0);
+        response.setReservado(100.0);
+
+        return response;
+    }
+
+    @Test
+    void testAuthorizeTransaction_Success() {
+
+        String idContrato = "CONTA-001";
         String idempotencyKey = "teste-123";
+
+        AuthorizeTransactionRequest request = createValidRequest();
 
         when(authorizationRepository.findByIdempotencyKey(idempotencyKey))
                 .thenReturn(Optional.empty());
 
-        when(lockService.acquireTransactionLocks(anyString(), eq(idContrato)))
+        when(lockService.acquireTransactionLocks(
+                anyString(),
+                eq(idContrato)))
                 .thenReturn(Arrays.asList("lock1", "lock2"));
-
-        AuthorizeTransactionUseCase.LimitReserveResponse limitResponse =
-                new AuthorizeTransactionUseCase.LimitReserveResponse();
-
-        limitResponse.setId(idContrato);
-        limitResponse.setSaldoAtual(9900.0);
-        limitResponse.setSaldoAnterior(10000.0);
-        limitResponse.setReservado(100.0);
 
         when(restTemplate.postForObject(
                 anyString(),
                 any(),
                 eq(AuthorizeTransactionUseCase.LimitReserveResponse.class)))
-                .thenReturn(limitResponse);
+                .thenReturn(createLimitResponse(idContrato));
 
         AuthorizeTransactionResponse response =
                 useCase.execute(
@@ -93,7 +108,9 @@ class AuthorizeTransactionUseCaseTest {
                 .save(any(Authorization.class));
 
         verify(lockService)
-                .acquireTransactionLocks(anyString(), eq(idContrato));
+                .acquireTransactionLocks(
+                        anyString(),
+                        eq(idContrato));
 
         verify(restTemplate)
                 .postForObject(
@@ -119,13 +136,7 @@ class AuthorizeTransactionUseCaseTest {
         String idContrato = "CONTA-001";
         String idempotencyKey = "teste-123";
 
-        AuthorizeTransactionRequest request =
-                new AuthorizeTransactionRequest();
-
-        request.setIdConta("ACC-001");
-        request.setValor(BigDecimal.valueOf(100.00));
-        request.setMoeda("BRL");
-        request.setTipoOperacao("DEBITO");
+        AuthorizeTransactionRequest request = createValidRequest();
 
         Authorization existing = Authorization.builder()
                 .idAutorizacao("AUTH-EXISTENTE")
@@ -149,8 +160,14 @@ class AuthorizeTransactionUseCaseTest {
                 );
 
         assertNotNull(response);
-        assertEquals("AUTH-EXISTENTE", response.getAuthorizationId());
-        assertEquals("APPROVED", response.getStatus());
+        assertEquals(
+                "AUTH-EXISTENTE",
+                response.getAuthorizationId());
+
+        assertEquals(
+                "APPROVED",
+                response.getStatus());
+
         assertTrue(response.isRepetition());
 
         verify(authorizationRepository)
@@ -170,22 +187,19 @@ class AuthorizeTransactionUseCaseTest {
         String idContrato = "CONTA-001";
         String idempotencyKey = "teste-invalid-value";
 
-        AuthorizeTransactionRequest request =
-                new AuthorizeTransactionRequest();
-
-        request.setIdConta("ACC-001");
+        AuthorizeTransactionRequest request = createValidRequest();
         request.setValor(BigDecimal.valueOf(-100.00));
-        request.setMoeda("BRL");
-        request.setTipoOperacao("DEBITO");
 
         when(authorizationRepository.findByIdempotencyKey(idempotencyKey))
                 .thenReturn(Optional.empty());
 
-        when(lockService.acquireTransactionLocks(anyString(), eq(idContrato)))
+        when(lockService.acquireTransactionLocks(
+                anyString(),
+                eq(idContrato)))
                 .thenReturn(Arrays.asList("lock1", "lock2"));
 
         assertThrows(
-                RuntimeException.class,
+                IllegalArgumentException.class,
                 () -> useCase.execute(
                         idContrato,
                         request,
@@ -193,9 +207,305 @@ class AuthorizeTransactionUseCaseTest {
                 )
         );
 
-        verify(lockService).releaseLocks(anyList());
+        verify(lockService)
+                .releaseLocks(anyList());
 
         verify(authorizationRepository, never())
                 .save(any());
+
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void testAuthorizeTransaction_ZeroValue() {
+
+        String idContrato = "CONTA-001";
+        String idempotencyKey = "teste-zero-value";
+
+        AuthorizeTransactionRequest request = createValidRequest();
+        request.setValor(BigDecimal.ZERO);
+
+        when(authorizationRepository.findByIdempotencyKey(idempotencyKey))
+                .thenReturn(Optional.empty());
+
+        when(lockService.acquireTransactionLocks(
+                anyString(),
+                eq(idContrato)))
+                .thenReturn(Arrays.asList("lock1", "lock2"));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> useCase.execute(
+                        idContrato,
+                        request,
+                        idempotencyKey
+                )
+        );
+
+        verify(lockService)
+                .releaseLocks(anyList());
+
+        verify(authorizationRepository, never())
+                .save(any());
+
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void testAuthorizeTransaction_NullValue() {
+
+        String idContrato = "CONTA-001";
+        String idempotencyKey = "teste-null-value";
+
+        AuthorizeTransactionRequest request = createValidRequest();
+        request.setValor(null);
+
+        when(authorizationRepository.findByIdempotencyKey(idempotencyKey))
+                .thenReturn(Optional.empty());
+
+        when(lockService.acquireTransactionLocks(
+                anyString(),
+                eq(idContrato)))
+                .thenReturn(Arrays.asList("lock1", "lock2"));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> useCase.execute(
+                        idContrato,
+                        request,
+                        idempotencyKey
+                )
+        );
+
+        verify(lockService)
+                .releaseLocks(anyList());
+
+        verify(authorizationRepository, never())
+                .save(any());
+
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void testAuthorizeTransaction_InsufficientLimit() {
+
+        String idContrato = "CONTA-001";
+        String idempotencyKey = "teste-insufficient-limit";
+
+        AuthorizeTransactionRequest request = createValidRequest();
+
+        when(authorizationRepository.findByIdempotencyKey(idempotencyKey))
+                .thenReturn(Optional.empty());
+
+        when(lockService.acquireTransactionLocks(
+                anyString(),
+                eq(idContrato)))
+                .thenReturn(Arrays.asList("lock1", "lock2"));
+
+        when(restTemplate.postForObject(
+                anyString(),
+                any(),
+                eq(AuthorizeTransactionUseCase.LimitReserveResponse.class)))
+                .thenThrow(
+                        new RuntimeException(
+                                "402 Payment Required"
+                        )
+                );
+
+        assertThrows(
+                InsufficientLimitException.class,
+                () -> useCase.execute(
+                        idContrato,
+                        request,
+                        idempotencyKey
+                )
+        );
+
+        verify(lockService)
+                .releaseLocks(anyList());
+
+        verify(authorizationRepository, never())
+                .save(any());
+
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void testAuthorizeTransaction_InvalidContract404() {
+
+        String idContrato = "CONTA-999";
+        String idempotencyKey = "teste-invalid-contract";
+
+        AuthorizeTransactionRequest request = createValidRequest();
+
+        when(authorizationRepository.findByIdempotencyKey(idempotencyKey))
+                .thenReturn(Optional.empty());
+
+        when(lockService.acquireTransactionLocks(
+                anyString(),
+                eq(idContrato)))
+                .thenReturn(Arrays.asList("lock1", "lock2"));
+
+        when(restTemplate.postForObject(
+                anyString(),
+                any(),
+                eq(AuthorizeTransactionUseCase.LimitReserveResponse.class)))
+                .thenThrow(
+                        new RuntimeException(
+                                "404 Not Found"
+                        )
+                );
+
+        IllegalArgumentException exception =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> useCase.execute(
+                                idContrato,
+                                request,
+                                idempotencyKey
+                        )
+                );
+
+        assertTrue(
+                exception.getMessage()
+                        .contains("Contrato inválido"));
+
+        verify(lockService)
+                .releaseLocks(anyList());
+
+        verify(authorizationRepository, never())
+                .save(any());
+
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void testAuthorizeTransaction_InvalidContract422() {
+
+        String idContrato = "CONTA-999";
+        String idempotencyKey = "teste-invalid-contract-422";
+
+        AuthorizeTransactionRequest request = createValidRequest();
+
+        when(authorizationRepository.findByIdempotencyKey(idempotencyKey))
+                .thenReturn(Optional.empty());
+
+        when(lockService.acquireTransactionLocks(
+                anyString(),
+                eq(idContrato)))
+                .thenReturn(Arrays.asList("lock1", "lock2"));
+
+        when(restTemplate.postForObject(
+                anyString(),
+                any(),
+                eq(AuthorizeTransactionUseCase.LimitReserveResponse.class)))
+                .thenThrow(
+                        new RuntimeException(
+                                "422 Unprocessable Entity"
+                        )
+                );
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> useCase.execute(
+                        idContrato,
+                        request,
+                        idempotencyKey
+                )
+        );
+
+        verify(lockService)
+                .releaseLocks(anyList());
+
+        verify(authorizationRepository, never())
+                .save(any());
+
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void testAuthorizeTransaction_LockAcquisitionFailure() {
+
+        String idContrato = "CONTA-001";
+        String idempotencyKey = "teste-lock-conflict";
+
+        AuthorizeTransactionRequest request = createValidRequest();
+
+        when(authorizationRepository.findByIdempotencyKey(idempotencyKey))
+                .thenReturn(Optional.empty());
+
+        when(lockService.acquireTransactionLocks(
+                anyString(),
+                eq(idContrato)))
+                .thenThrow(
+                        new LockAcquisitionException(
+                                "Não foi possível adquirir lock"
+                        )
+                );
+
+        assertThrows(
+                LockAcquisitionException.class,
+                () -> useCase.execute(
+                        idContrato,
+                        request,
+                        idempotencyKey
+                )
+        );
+
+        verify(lockService, never())
+                .releaseLocks(anyList());
+
+        verifyNoInteractions(restTemplate);
+        verifyNoInteractions(eventPublisher);
+
+        verify(authorizationRepository, never())
+                .save(any());
+    }
+
+    @Test
+    void testAuthorizeTransaction_UnexpectedLimitsFailure() {
+
+        String idContrato = "CONTA-001";
+        String idempotencyKey = "teste-limits-error";
+
+        AuthorizeTransactionRequest request = createValidRequest();
+
+        when(authorizationRepository.findByIdempotencyKey(idempotencyKey))
+                .thenReturn(Optional.empty());
+
+        when(lockService.acquireTransactionLocks(
+                anyString(),
+                eq(idContrato)))
+                .thenReturn(Arrays.asList("lock1", "lock2"));
+
+        when(restTemplate.postForObject(
+                anyString(),
+                any(),
+                eq(AuthorizeTransactionUseCase.LimitReserveResponse.class)))
+                .thenThrow(
+                        new RuntimeException(
+                                "Connection refused"
+                        )
+                );
+
+        RuntimeException exception =
+                assertThrows(
+                        RuntimeException.class,
+                        () -> useCase.execute(
+                                idContrato,
+                                request,
+                                idempotencyKey
+                        )
+                );
+
+        assertNotNull(exception);
+
+        verify(lockService)
+                .releaseLocks(anyList());
+
+        verify(authorizationRepository, never())
+                .save(any());
+
+        verifyNoInteractions(eventPublisher);
     }
 }

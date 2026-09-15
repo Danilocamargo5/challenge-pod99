@@ -1,0 +1,133 @@
+package com.pod99.limits.application;
+
+import com.pod99.limits.domain.Limit;
+import com.pod99.limits.domain.LimitRepository;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.math.BigDecimal;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class ReserveLimitUseCaseTest {
+
+    @Mock
+    private LimitRepository limitRepository;
+
+    @InjectMocks
+    private ReserveLimitUseCase useCase;
+
+    @Test
+    void testReserve_Success() {
+
+        Limit limit = Limit.builder()
+                .idContrato("CONTA-001")
+                .idConta("ACC-001")
+                .limite(BigDecimal.valueOf(10000))
+                .disponivel(BigDecimal.valueOf(10000))
+                .reservado(BigDecimal.ZERO)
+                .version(1L)
+                .build();
+
+        when(limitRepository.findByContractId("CONTA-001"))
+                .thenReturn(Optional.of(limit));
+
+        useCase.reserve(
+                "CONTA-001",
+                BigDecimal.valueOf(100)
+        );
+
+        assertEquals(
+                0,
+                BigDecimal.valueOf(9900)
+                        .compareTo(limit.getDisponivel())
+        );
+
+        assertEquals(
+                0,
+                BigDecimal.valueOf(100)
+                        .compareTo(limit.getReservado())
+        );
+
+        verify(limitRepository)
+                .findByContractId("CONTA-001");
+
+        verify(limitRepository)
+                .update(limit);
+    }
+
+    @Test
+    void testReserve_ContractNotFound() {
+
+        when(limitRepository.findByContractId("CONTA-999"))
+                .thenReturn(Optional.empty());
+
+        IllegalArgumentException exception =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> useCase.reserve(
+                                "CONTA-999",
+                                BigDecimal.valueOf(100)
+                        )
+                );
+
+        assertEquals(
+                "Contrato não encontrado",
+                exception.getMessage()
+        );
+
+        verify(limitRepository, never())
+                .update(any());
+    }
+
+    @Test
+    void testReserve_InsufficientLimit() {
+
+        Limit limit = Limit.builder()
+                .idContrato("CONTA-001")
+                .idConta("ACC-001")
+                .limite(BigDecimal.valueOf(1000))
+                .disponivel(BigDecimal.valueOf(50))
+                .reservado(BigDecimal.ZERO)
+                .version(1L)
+                .build();
+
+        when(limitRepository.findByContractId("CONTA-001"))
+                .thenReturn(Optional.of(limit));
+
+        IllegalArgumentException exception =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> useCase.reserve(
+                                "CONTA-001",
+                                BigDecimal.valueOf(100)
+                        )
+                );
+
+        assertEquals(
+                "Limite insuficiente",
+                exception.getMessage()
+        );
+
+        assertEquals(
+                0,
+                BigDecimal.valueOf(50)
+                        .compareTo(limit.getDisponivel())
+        );
+
+        assertEquals(
+                0,
+                BigDecimal.ZERO
+                        .compareTo(limit.getReservado())
+        );
+
+        verify(limitRepository, never())
+                .update(any());
+    }
+}
