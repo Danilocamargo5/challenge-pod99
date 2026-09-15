@@ -30,11 +30,6 @@
             <artifactId>dynamodb</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>events</artifactId>
-        </dependency>
-
         <!-- Jackson -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
