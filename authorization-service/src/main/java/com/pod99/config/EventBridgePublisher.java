@@ -27,11 +27,13 @@ public class EventBridgePublisher {
             Double valor,
             String moeda) {
         
-        log.info("📤 Publicando evento TransacaoAutorizada no EventBridge");
-        log.info("   ID Autorização: {}", idAutorizacao);
-        log.info("   ID Contrato: {}", idContrato);
-        log.info("   ID Conta: {}", idConta);
-        log.info("   Valor: {} {}", valor, moeda);
+        log.info("┌─────────────────────────────────────────────────────────────────┐");
+        log.info("│ 📤 AUTHORIZATION → EVENTBRIDGE - Publicando evento               │");
+        log.info("├─────────────────────────────────────────────────────────────────┤");
+        log.info("│ Autorização: {} | Contrato: {}", idAutorizacao, idContrato);
+        log.info("│ Conta: {} | Valor: {} {}", idConta, valor, moeda);
+        log.info("│ Destino: EventBridge → SQS → Accounting Service", valor, moeda);
+        log.info("└─────────────────────────────────────────────────────────────────┘");
         
         try {
             // Criar evento de domínio
@@ -56,7 +58,10 @@ public class EventBridgePublisher {
             PutEventsResponse response = eventBridgeClient.putEvents(request);
             
             if (response.failedEntryCount() == 0) {
-                log.info("✅ Evento publicado com sucesso no EventBridge");
+                log.info("┌─────────────────────────────────────────────────────────────────┐");
+                log.info("│ ✅ EVENTBRIDGE - Evento publicado com sucesso                    │");
+                log.info("│ Será roteado para: pod99-transactions.fifo (SQS)", valor, moeda);
+                log.info("└─────────────────────────────────────────────────────────────────┘");
             } else {
                 log.error("❌ Falha ao publicar evento: {}", response.failedEntryCount());
             }

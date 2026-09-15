@@ -55,3 +55,19 @@ echo "   - limits-service:        http://localhost:8082"
 echo "   - accounting-service:    (listener SQS, sem HTTP)"
 echo ""
 echo "============================================================"
+echo ""
+echo "🚀 Subindo serviços Java (background)..."
+
+# Subir em background em tmux ou nohup
+nohup mvn -pl authorization-service spring-boot:run > /tmp/authorization.log 2>&1 &
+sleep 2
+nohup mvn -pl limits-service spring-boot:run > /tmp/limits.log 2>&1 &
+sleep 2
+nohup mvn -pl accounting-service spring-boot:run > /tmp/accounting.log 2>&1 &
+
+echo "✅ Serviços Java iniciados em background"
+echo ""
+echo "Logs disponíveis em:"
+echo "  - Authorization: tail -f /tmp/authorization.log"
+echo "  - Limits: tail -f /tmp/limits.log"
+echo "  - Accounting: tail -f /tmp/accounting.log"

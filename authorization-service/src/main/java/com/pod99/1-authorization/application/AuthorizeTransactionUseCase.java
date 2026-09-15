@@ -38,8 +38,13 @@ public class AuthorizeTransactionUseCase {
         String correlationId = MDC.get("X-Correlation-ID");
         String traceId = MDC.get("X-Trace-ID");
         
-        log.info("🔐 Iniciando autorização: contrato={}, conta={}, valor={}", 
-            idContrato, request.getIdConta(), request.getValor());
+        log.info("┌─────────────────────────────────────────────────────────────────┐");
+        log.info("│ 🔐 AUTHORIZATION SERVICE - Iniciando autorização                 │");
+        log.info("├─────────────────────────────────────────────────────────────────┤");
+        log.info("│ Contrato: {} | Conta: {}", idContrato, request.getIdConta());
+        log.info("│ Valor: {} {} | Correlação: {}", request.getValor(), request.getMoeda(), correlationId);
+        log.info("│ Trace: {} | Idempotency: {}", traceId, idempotencyKey);
+        log.info("└─────────────────────────────────────────────────────────────────┘");
         
         String authId = UUID.randomUUID().toString();
         List<String> acquiredLocks = null;
@@ -49,20 +54,20 @@ public class AuthorizeTransactionUseCase {
         
         // 🔒 ADQUIRIR LOCKS (seção crítica começa aqui)
         try {
-            log.info("🔒 Adquirindo locks: conta={}, contrato={}", 
-                request.getIdConta(), idContrato);
+            log.info("  ➜ [1/5] 🔒 Adquirindo locks...");
             
             acquiredLocks = lockService.acquireTransactionLocks(authId, idContrato);
-            log.info("✅ Locks adquiridos: {}", acquiredLocks);
+            
+            log.info("  ✅ [1/5] Locks adquiridos: {}", acquiredLocks);
             
             // 📋 Validar entrada
             if (valor == null || valor <= 0.0) {
-                log.warn("❌ Valor inválido: {}", valor);
+                log.warn("  ❌ Valor inválido: {}", valor);
                 throw new IllegalArgumentException("Valor inválido");
             }
             
             // 1️⃣ CHAMAR LIMITS SERVICE: VALIDAR + RESERVAR em UMA ÚNICA CHAMADA (atômico)
-            log.info("📞 Chamando POST /limits-service/v1/limites/{}/reservar (validar + reservar)", idContrato);
+            log.info("  ➜ [2/5] 📞 Chamando LIMITS SERVICE...");
             String limitsUrl = "http://localhost:8082/v1/limites/" + idContrato + "/reservar";
             
             LimitReserveRequest reserveRequest = new LimitReserveRequest();
@@ -72,26 +77,20 @@ public class AuthorizeTransactionUseCase {
             LimitReserveResponse response;
             try {
                 response = restTemplate.postForObject(limitsUrl, reserveRequest, LimitReserveResponse.class);
-                log.info("✅ Limite validado e reservado atomicamente: valor={}, saldoAtual={}", 
-                    valor, response.getSaldoAtual());
+                log.info("  ✅ [2/5] LIMITS SERVICE respondeu - Saldo: {}", response.getSaldoAtual());
             } catch (Exception e) {
-                log.error("❌ Erro ao validar/reservar limite em limits-service", e);
+                log.error("  ❌ [2/5] Erro ao chamar LIMITS SERVICE: {}", e.getMessage());
                 if (e.getMessage() != null && e.getMessage().contains("402")) {
                     throw new InsufficientLimitException("Limite insuficiente");
                 }
                 throw new RuntimeException("Falha ao reservar limite", e);
             }
             
-            // 2️⃣ CRIAR AUTORIZAÇÃO (logging apenas)
-            log.info("✅ Autorização criada");
-            log.info("   ID: {}", authId);
-            log.info("   Conta: {}", request.getIdConta());
-            log.info("   Contrato: {}", idContrato);
-            log.info("   Valor: {}", valor);
-            log.info("   Status: APPROVED");
+            // 2️⃣ CRIAR AUTORIZAÇÃO
+            log.info("  ✅ [3/5] Autorização criada - ID: {}", authId);
             
             // 3️⃣ PUBLICAR EVENTO no EventBridge
-            log.info("📤 Publicando evento no EventBridge para contabilidade");
+            log.info("  ➜ [4/5] 📤 Publicando evento no EventBridge...");
             eventPublisher.publishTransactionAuthorized(
                 authId,
                 idContrato,
@@ -99,6 +98,16 @@ public class AuthorizeTransactionUseCase {
                 valor,
                 request.getMoeda()
             );
+            log.info("  ✅ [4/5] Evento publicado");
+            
+            log.info("  ✅ [5/5] Fluxo completado com sucesso");
+            
+            log.info("┌─────────────────────────────────────────────────────────────────┐");
+            log.info("│ 🟢 AUTHORIZATION SERVICE - Autorização APROVADA                 │");
+            log.info("├─────────────────────────────────────────────────────────────────┤");
+            log.info("│ ID Autorização: {} | Status: APPROVED", authId);
+            log.info("│ Saldo Reservado: {} {} | Correlação: {}", valor, request.getMoeda(), correlationId);
+            log.info("└─────────────────────────────────────────────────────────────────┘");
             
             return new AuthorizeTransactionResponse(
                 authId,
@@ -110,15 +119,15 @@ public class AuthorizeTransactionUseCase {
             );
             
         } catch (InsufficientLimitException e) {
-            log.warn("⚠️ Limite insuficiente para autorização");
+            log.warn("  ⚠️ Limite insuficiente");
             throw e;
         } catch (Exception e) {
-            log.error("❌ Erro ao autorizar transação", e);
+            log.error("  ❌ Erro ao autorizar transação", e);
             throw new RuntimeException("Falha na autorização", e);
         } finally {
             if (acquiredLocks != null && !acquiredLocks.isEmpty()) {
                 lockService.releaseLocks(acquiredLocks);
-                log.info("🔓 Locks liberados: {}", acquiredLocks);
+                log.info("  🔓 Locks liberados");
             }
         }
     }

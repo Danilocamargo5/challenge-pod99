@@ -45,23 +45,25 @@ public class LimitsController {
         
         try {
             // 📥 LOG DE ENTRADA
-            log.info("═══════════════════════════════════════════════════════════════");
-            log.info("🔵 [LIMITS] ENTRADA - Requisição de reserva de limite");
-            log.info("   Contrato: {} | Valor: {}", idContrato, valor);
-            log.info("   Idempotency-Key: {} | Trace: {}", idempotencyKey, traceId);
-            log.info("═══════════════════════════════════════════════════════════════");
+            log.info("┌─────────────────────────────────────────────────────────────────┐");
+            log.info("│ 🔵 AUTHORIZATION → LIMITS SERVICE - Validar + Reservar           │");
+            log.info("├─────────────────────────────────────────────────────────────────┤");
+            log.info("│ Contrato: {} | Valor: {}", idContrato, valor);
+            log.info("│ Idempotency-Key: {} | Trace: {}", idempotencyKey, traceId);
+            log.info("└─────────────────────────────────────────────────────────────────┘");
             
             // TODO: Chamar repository para validar limite real
             // Por enquanto, apenas retorna sucesso
             Double saldoAtual = 10000.0 - valor; // Mock
             
             // 📤 LOG DE SAÍDA
-            log.info("═══════════════════════════════════════════════════════════════");
-            log.info("🟢 [LIMITS] SAÍDA - Limite validado e reservado com sucesso");
-            log.info("   Contrato: {} | Valor Reservado: {}", 
+            log.info("┌─────────────────────────────────────────────────────────────────┐");
+            log.info("│ 🟢 LIMITS SERVICE - Limite validado e reservado com sucesso      │");
+            log.info("├─────────────────────────────────────────────────────────────────┤");
+            log.info("│ Contrato: {} | Valor Reservado: {}", 
                 idContrato, valor);
-            log.info("   Status: APPROVED | Saldo Atual: {} | Trace: {}", saldoAtual, traceId);
-            log.info("═══════════════════════════════════════════════════════════════");
+            log.info("│ Status: APPROVED | Saldo Atual: {} | Trace: {}", saldoAtual, traceId);
+            log.info("└─────────────────────────────────────────────────────────────────┘");
             
             return ResponseEntity.ok(Map.of(
                 "id", idContrato,

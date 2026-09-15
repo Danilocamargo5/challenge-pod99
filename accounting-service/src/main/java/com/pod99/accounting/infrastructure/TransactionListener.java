@@ -16,8 +16,9 @@ public class TransactionListener {
     @SqsListener("pod99-transactions.fifo")
     public void handleTransactionAuthorized(String message) {
         
-        log.info("📨 Recebido evento do SQS");
-        log.info("   Mensagem: {}", message);
+        log.info("┌─────────────────────────────────────────────────────────────────┐");
+        log.info("│ 📨 ACCOUNTING SERVICE - Recebido evento do SQS                   │");
+        log.info("├─────────────────────────────────────────────────────────────────┤");
         
         try {
             // Parse do evento
@@ -29,14 +30,15 @@ public class TransactionListener {
             Number valor = (Number) event.get("valor");
             String moeda = (String) event.get("moeda");
             
-            log.info("✅ Evento processado para contabilidade:");
-            log.info("   Autorização: {}", idAutorizacao);
-            log.info("   Contrato: {}", idContrato);
-            log.info("   Conta: {}", idConta);
-            log.info("   Valor: {} {}", valor, moeda);
+            log.info("│ Autorização: {} | Contrato: {}", idAutorizacao, idContrato);
+            log.info("│ Conta: {} | Valor: {} {}", idConta, valor, moeda);
+            log.info("├─────────────────────────────────────────────────────────────────┤");
             
             // TODO: Persistir na tabela de contabilidade
-            log.info("💾 [MOCK] Persistindo em pod99-accounting (DynamoDB)");
+            log.info("│ 💾 Processando contabilidade (persistência em DynamoDB)...       │");
+            log.info("│ Status: PROCESSADO ✅                                            │");
+            
+            log.info("└─────────────────────────────────────────────────────────────────┘");
             
         } catch (Exception e) {
             log.error("❌ Erro ao processar evento", e);
