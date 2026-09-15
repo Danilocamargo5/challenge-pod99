@@ -51,7 +51,7 @@ TARGET_RESPONSE=$(curl -s -X POST http://localhost:4566/ \
       "Arn": "arn:aws:sqs:us-east-1:000000000000:pod99-accounting-queue.fifo",
       "RoleArn": "arn:aws:iam::000000000000:role/pod99-eventbridge-role",
       "SqsParameters": {
-        "RoleArn": "arn:aws:iam::000000000000:role/pod99-eventbridge-role"
+        "MessageGroupId": "pod99"
       }
     }]
   }')
