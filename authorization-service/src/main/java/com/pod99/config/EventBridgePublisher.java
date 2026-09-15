@@ -45,12 +45,12 @@ public class EventBridgePublisher {
             ));
             
             PutEventsRequest request = PutEventsRequest.builder()
+                    .eventBusName(EVENT_BUS)
                     .entries(PutEventsRequestEntry.builder()
                             .time(Instant.now())
                             .source("pod99.authorization")
                             .detailType("TransacaoAutorizada")
                             .detail(eventDetail)
-                            .eventBus(EVENT_BUS)
                             .build())
                     .build();
             
