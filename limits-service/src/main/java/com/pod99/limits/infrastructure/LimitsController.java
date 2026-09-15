@@ -16,32 +16,29 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping("/v1/limits")
+@RequestMapping("/v1/limites")
 public class LimitsController {
     
     /**
-     * POST /v1/limits/reserve
+     * POST /v1/limites/{idContrato}/reservar
      * 
      * Chamada HTTP síncrona de authorization-service (8080) → limits-service (8082)
      * 
      * Body:
      * {
-     *   "idAutorizacao": "uuid",
-     *   "idContrato": "CONTA-001",
      *   "valor": 100.00,
-     *   "moeda": "BRL"
+     *   "idempotencyKey": "uuid"
      * }
      */
-    @PostMapping("/reserve")
-    public ResponseEntity<?> reserveLimit(
+    @PostMapping("/{idContrato}/reservar")
+    public ResponseEntity<?> reservarLimite(
+            @PathVariable String idContrato,
             @RequestBody Map<String, Object> request,
             @RequestHeader(value = "X-Trace-ID", required = false) String traceId,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
         
-        String idAutorizacao = (String) request.get("idAutorizacao");
-        String idContrato = (String) request.get("idContrato");
         Double valor = ((Number) request.get("valor")).doubleValue();
-        String moeda = (String) request.get("moeda");
+        String idempotencyKey = (String) request.get("idempotencyKey");
         
         if (traceId != null) MDC.put("X-Trace-ID", traceId);
         if (correlationId != null) MDC.put("X-Correlation-ID", correlationId);
@@ -50,34 +47,35 @@ public class LimitsController {
             // 📥 LOG DE ENTRADA
             log.info("═══════════════════════════════════════════════════════════════");
             log.info("🔵 [LIMITS] ENTRADA - Requisição de reserva de limite");
-            log.info("   ID Autorização: {} | Contrato: {}", idAutorizacao, idContrato);
-            log.info("   Valor: {} {} | Trace: {}", valor, moeda, traceId);
+            log.info("   Contrato: {} | Valor: {}", idContrato, valor);
+            log.info("   Idempotency-Key: {} | Trace: {}", idempotencyKey, traceId);
             log.info("═══════════════════════════════════════════════════════════════");
             
             // TODO: Chamar repository para validar limite real
             // Por enquanto, apenas retorna sucesso
+            Double saldoAtual = 10000.0 - valor; // Mock
             
             // 📤 LOG DE SAÍDA
             log.info("═══════════════════════════════════════════════════════════════");
             log.info("🟢 [LIMITS] SAÍDA - Limite validado e reservado com sucesso");
-            log.info("   ID Autorização: {} | Valor Reservado: {} {}", 
-                idAutorizacao, valor, moeda);
-            log.info("   Status: APPROVED | Trace: {}", traceId);
+            log.info("   Contrato: {} | Valor Reservado: {}", 
+                idContrato, valor);
+            log.info("   Status: APPROVED | Saldo Atual: {} | Trace: {}", saldoAtual, traceId);
             log.info("═══════════════════════════════════════════════════════════════");
             
             return ResponseEntity.ok(Map.of(
-                "idAutorizacao", idAutorizacao,
-                "status", "APPROVED",
-                "valorReservado", valor,
-                "moeda", moeda
+                "id", idContrato,
+                "saldoAnterior", 10000.0,
+                "saldoAtual", saldoAtual,
+                "reservado", valor
             ));
             
         } catch (Exception e) {
-            log.error("❌ Erro ao processar reserva de limite para autorização: {}", idAutorizacao, e);
+            log.error("❌ Erro ao processar reserva de limite para contrato: {}", idContrato, e);
             return ResponseEntity
                 .status(HttpStatus.PAYMENT_REQUIRED)
                 .body(Map.of(
-                    "idAutorizacao", idAutorizacao,
+                    "id", idContrato,
                     "status", "REJECTED",
                     "erro", e.getMessage()
                 ));
