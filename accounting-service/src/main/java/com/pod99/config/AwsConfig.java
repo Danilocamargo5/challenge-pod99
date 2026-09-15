@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -14,51 +15,56 @@ import java.net.URI;
 
 @Configuration
 public class AwsConfig {
-    
+
     @Value("${aws.dynamodb.endpoint:}")
     private String dynamoDbEndpoint;
-    
-    @Value("${aws.sqs.endpoint:}")
+
+    @Value("${spring.cloud.aws.sqs.endpoint:}")
     private String sqsEndpoint;
-    
+
     @Value("${aws.region:us-east-1}")
     private String region;
-    
+
     @Value("${aws.credentials.access-key-id:test}")
     private String accessKeyId;
-    
+
     @Value("${aws.credentials.secret-access-key:test}")
     private String secretAccessKey;
-    
+
     @Bean
-    public software.amazon.awssdk.auth.credentials.AwsCredentialsProvider awsCredentialsProvider() {
+    public AwsCredentialsProvider awsCredentialsProvider() {
         return StaticCredentialsProvider.create(
-            AwsBasicCredentials.create(accessKeyId, secretAccessKey));
+            AwsBasicCredentials.create(accessKeyId, secretAccessKey)
+        );
     }
-    
+
     @Bean
-    public DynamoDbClient dynamoDbClient(software.amazon.awssdk.auth.credentials.AwsCredentialsProvider credentialsProvider) {
+    public DynamoDbClient dynamoDbClient(
+            AwsCredentialsProvider credentialsProvider) {
+
         DynamoDbClientBuilder builder = DynamoDbClient.builder()
             .region(Region.of(region))
             .credentialsProvider(credentialsProvider);
-        
+
         if (!dynamoDbEndpoint.isEmpty()) {
             builder.endpointOverride(URI.create(dynamoDbEndpoint));
         }
-        
+
         return builder.build();
     }
-    
+
     @Bean
-    public SqsAsyncClient sqsAsyncClient(software.amazon.awssdk.auth.credentials.AwsCredentialsProvider credentialsProvider) {
+    public SqsAsyncClient sqsAsyncClient(
+            AwsCredentialsProvider credentialsProvider) {
+
         var builder = SqsAsyncClient.builder()
             .region(Region.of(region))
             .credentialsProvider(credentialsProvider);
-        
+
         if (!sqsEndpoint.isEmpty()) {
             builder.endpointOverride(URI.create(sqsEndpoint));
         }
-        
+
         return builder.build();
     }
 }
