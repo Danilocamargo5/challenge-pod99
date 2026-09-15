@@ -22,7 +22,14 @@ public class AuthorizeTransactionUseCase {
     public AuthorizeTransactionResponse execute(String accountId, Object request, String contractId) {
         // TODO: Implementar após integração com limits-service
         log.info("TODO: Implement authorize logic");
-        return new AuthorizeTransactionResponse("TODO-ID", "PENDING", "TODO");
+        return new AuthorizeTransactionResponse(
+            "TODO-ID", 
+            "PENDING", 
+            "TODO",
+            "TODO-AUTH-ID",
+            0.0,
+            false
+        );
     }
     
     public void authorize(String accountId, String contractId, Object request) {
