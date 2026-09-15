@@ -44,6 +44,9 @@ public class AuthorizeTransactionUseCase {
         String authId = UUID.randomUUID().toString();
         List<String> acquiredLocks = null;
         
+        // Converter valor para Double
+        Double valor = request.getValor() != null ? request.getValor().doubleValue() : null;
+        
         // 🔒 ADQUIRIR LOCKS (seção crítica começa aqui)
         try {
             log.info("🔒 Adquirindo locks: conta={}, contrato={}", 
@@ -53,8 +56,8 @@ public class AuthorizeTransactionUseCase {
             log.info("✅ Locks adquiridos: {}", acquiredLocks);
             
             // 📋 Validar entrada
-            if (request.getValor() == null || request.getValor() <= 0.0) {
-                log.warn("❌ Valor inválido: {}", request.getValor());
+            if (valor == null || valor <= 0.0) {
+                log.warn("❌ Valor inválido: {}", valor);
                 throw new IllegalArgumentException("Valor inválido");
             }
             
@@ -63,14 +66,14 @@ public class AuthorizeTransactionUseCase {
             String limitsUrl = "http://localhost:8082/v1/limites/" + idContrato + "/reservar";
             
             LimitReserveRequest reserveRequest = new LimitReserveRequest();
-            reserveRequest.setValor(request.getValor());
+            reserveRequest.setValor(valor);
             reserveRequest.setIdempotencyKey(idempotencyKey);
             
             LimitReserveResponse response;
             try {
                 response = restTemplate.postForObject(limitsUrl, reserveRequest, LimitReserveResponse.class);
                 log.info("✅ Limite validado e reservado atomicamente: valor={}, saldoAtual={}", 
-                    request.getValor(), response.getSaldoAtual());
+                    valor, response.getSaldoAtual());
             } catch (Exception e) {
                 log.error("❌ Erro ao validar/reservar limite em limits-service", e);
                 if (e.getMessage() != null && e.getMessage().contains("402")) {
@@ -79,24 +82,24 @@ public class AuthorizeTransactionUseCase {
                 throw new RuntimeException("Falha ao reservar limite", e);
             }
             
-            // 2️⃣ CRIAR AUTORIZAÇÃO (sim, só logging por agora - sem persistência complexa)
+            // 2️⃣ CRIAR AUTORIZAÇÃO (logging apenas)
             log.info("✅ Autorização criada");
             log.info("   ID: {}", authId);
             log.info("   Conta: {}", request.getIdConta());
             log.info("   Contrato: {}", idContrato);
-            log.info("   Valor: {}", request.getValor());
+            log.info("   Valor: {}", valor);
             log.info("   Status: APPROVED");
             
             // 3️⃣ PUBLICAR EVENTO no EventBridge
             log.info("📤 Publicando evento no EventBridge para contabilidade");
-            eventPublisher.publishEvent(null); // TODO: passar evento real
+            // eventPublisher.publish(event); // TODO: implementar depois
             
             return new AuthorizeTransactionResponse(
                 authId,
                 "APPROVED",
                 "Transação autorizada com sucesso",
                 authId,
-                request.getValor(),
+                valor,
                 false
             );
             
