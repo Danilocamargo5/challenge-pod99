@@ -2,6 +2,7 @@ package com.pod99.authorization.application;
 
 import com.pod99.authorization.domain.Authorization;
 import com.pod99.authorization.domain.AuthorizationRepository;
+import com.pod99.common.exception.InsufficientLimitException;
 import com.pod99.config.EventBridgePublisher;
 import com.pod99.config.LockService;
 import lombok.RequiredArgsConstructor;
@@ -304,11 +305,4 @@ public class AuthorizeTransactionUseCase {
         }
     }
 
-    public static class InsufficientLimitException
-            extends RuntimeException {
-
-        public InsufficientLimitException(String message) {
-            super(message);
-        }
-    }
 }
