@@ -19,10 +19,10 @@ public class AuthorizeTransactionUseCase {
     private final EventBridgePublisher eventPublisher;
     private final LockService lockService;
     
-    public Object execute(String accountId, Object request, String contractId) {
+    public AuthorizeTransactionResponse execute(String accountId, Object request, String contractId) {
         // TODO: Implementar após integração com limits-service
         log.info("TODO: Implement authorize logic");
-        return null;
+        return new AuthorizeTransactionResponse("TODO-ID", "PENDING", "TODO");
     }
     
     public void authorize(String accountId, String contractId, Object request) {
