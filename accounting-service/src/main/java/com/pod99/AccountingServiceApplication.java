@@ -3,15 +3,11 @@ package com.pod99;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
-import org.springframework.messaging.annotation.EnableMessaging;
-import io.awspring.cloud.sqs.annotation.EnableSqs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SpringBootApplication
 @ComponentScan(basePackages = {"com.pod99"})
-@EnableSqs
-@EnableMessaging
 public class AccountingServiceApplication {
 
     private static final Logger log = LoggerFactory.getLogger(AccountingServiceApplication.class);
