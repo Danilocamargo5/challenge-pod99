@@ -9,7 +9,7 @@ import io.awspring.cloud.sqs.annotation.SqsListener;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class TransactionListener {
+public class AccountingEventListener {
     
     private final ObjectMapper objectMapper;
     
