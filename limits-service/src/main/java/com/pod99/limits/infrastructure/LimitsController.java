@@ -1,8 +1,5 @@
 package com.pod99.limits.infrastructure;
 
-import com.pod99.limits.application.ReserveLimitUseCase;
-import com.pod99.limits.domain.Limit;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
@@ -12,21 +9,20 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 /**
- * HTTP Adapter para Serviço de Limites
+ * REST Controller para Serviço de Limites
  * 
- * Recebe chamadas síncronas do authorization-service
+ * Recebe chamadas HTTP síncronas do authorization-service
  * para validar e reservar limites
  */
 @Slf4j
 @RestController
 @RequestMapping("/v1/limits")
-@RequiredArgsConstructor
 public class LimitsController {
-    
-    private final ReserveLimitUseCase reserveLimitUseCase;
     
     /**
      * POST /v1/limits/reserve
+     * 
+     * Chamada HTTP síncrona de authorization-service (8080) → limits-service (8082)
      * 
      * Body:
      * {
@@ -58,7 +54,7 @@ public class LimitsController {
             log.info("   Valor: {} {} | Trace: {}", valor, moeda, traceId);
             log.info("═══════════════════════════════════════════════════════════════");
             
-            // Validar limite (UseCase do authorization já faz isso, mas podemos ter lógica aqui)
+            // TODO: Chamar repository para validar limite real
             // Por enquanto, apenas retorna sucesso
             
             // 📤 LOG DE SAÍDA
@@ -92,9 +88,11 @@ public class LimitsController {
     
     /**
      * GET /v1/limits/health
+     * Verificar saúde do serviço
      */
     @GetMapping("/health")
     public ResponseEntity<?> health() {
+        log.info("🔵 [LIMITS] HEALTH CHECK");
         return ResponseEntity.ok(Map.of(
             "service", "limits-service",
             "status", "UP",
